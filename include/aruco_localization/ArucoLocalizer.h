@@ -47,7 +47,7 @@ namespace aruco_localizer {
 
         // ROS publishers and subscribers
         ros::Publisher estimate_pub_;
-        ros::Publisher meas_pub_;
+        // ros::Publisher meas_pub_;
         ros::Publisher center_pix_;
         ros::ServiceServer calib_attitude_;
 

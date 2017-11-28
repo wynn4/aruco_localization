@@ -23,7 +23,7 @@ ArucoLocalizer::ArucoLocalizer() :
 
     // Create ROS publishers
     estimate_pub_ = nh_private_.advertise<geometry_msgs::PoseStamped>("estimate", 1);
-    meas_pub_ = nh_private_.advertise<aruco_localization::MarkerMeasurementArray>("measurements", 1);
+    // meas_pub_ = nh_private_.advertise<aruco_localization::MarkerMeasurementArray>("measurements", 1);
     center_pix_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center", 1);
 
     // Create ROS services
@@ -131,9 +131,9 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         geometry_msgs::PointStamped pointMsg;
         pointMsg.point.x = center.x;
         pointMsg.point.y = center.y;
-//        pointMsg.header.frame_id = "aruco";
-//        pointMsg.header.stamp = now;
-        pointMsg.header = image_header_;
+        pointMsg.header.frame_id = "aruco_center";
+        pointMsg.header.stamp = image_header_.stamp;
+        // pointMsg.header = image_header_;
         center_pix_.publish(pointMsg);
 
     }
@@ -148,39 +148,39 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
     // Calculate pose of each individual marker w.r.t the camera
     //
 
-    aruco_localization::MarkerMeasurementArray measurement_msg;
-    measurement_msg.header.frame_id = "camera";
-    measurement_msg.header.stamp = ros::Time::now();
+    // aruco_localization::MarkerMeasurementArray measurement_msg;
+    // measurement_msg.header.frame_id = "camera";
+    // measurement_msg.header.stamp = ros::Time::now();
 
-    for (auto marker : detected_markers) {
-        // Create Tvec, Rvec based on the camera and marker geometry
-        marker.calculateExtrinsics(markerSize_, camParams_, false);
+    // for (auto marker : detected_markers) {
+    //     // Create Tvec, Rvec based on the camera and marker geometry
+    //     marker.calculateExtrinsics(markerSize_, camParams_, false);
 
-        // Create the ROS pose message and add to the array
-        aruco_localization::MarkerMeasurement msg;
-        msg.position.x = marker.Tvec.at<float>(0);
-        msg.position.y = marker.Tvec.at<float>(1);
-        msg.position.z = marker.Tvec.at<float>(2);
+    //     // Create the ROS pose message and add to the array
+    //     aruco_localization::MarkerMeasurement msg;
+    //     msg.position.x = marker.Tvec.at<float>(0);
+    //     msg.position.y = marker.Tvec.at<float>(1);
+    //     msg.position.z = marker.Tvec.at<float>(2);
 
-        // Represent Rodrigues parameters as a quaternion
-        tf::Quaternion quat = rodriguesToTFQuat(marker.Rvec);
-        tf::quaternionTFToMsg(quat, msg.orientation);
+    //     // Represent Rodrigues parameters as a quaternion
+    //     tf::Quaternion quat = rodriguesToTFQuat(marker.Rvec);
+    //     tf::quaternionTFToMsg(quat, msg.orientation);
 
-        // Extract Euler angles
-        double r, p, y;
-        tf::Matrix3x3(quat).getRPY(r,p,y);
+    //     // Extract Euler angles
+    //     double r, p, y;
+    //     tf::Matrix3x3(quat).getRPY(r,p,y);
 
-        msg.euler.x = r*180/M_PI;
-        msg.euler.y = p*180/M_PI;
-        msg.euler.z = y*180/M_PI;
+    //     msg.euler.x = r*180/M_PI;
+    //     msg.euler.y = p*180/M_PI;
+    //     msg.euler.z = y*180/M_PI;
 
-        // attach the ArUco ID to this measurement
-        msg.aruco_id = marker.id;
+    //     // attach the ArUco ID to this measurement
+    //     msg.aruco_id = marker.id;
 
-        measurement_msg.poses.push_back(msg);
-    }
+    //     measurement_msg.poses.push_back(msg);
+    // }
 
-    meas_pub_.publish(measurement_msg);
+    // meas_pub_.publish(measurement_msg);
 
     //
     // Calculate pose of the entire marker map w.r.t the camera
