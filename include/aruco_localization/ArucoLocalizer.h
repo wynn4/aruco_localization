@@ -48,6 +48,7 @@ namespace aruco_localizer {
         // ROS publishers and subscribers
         ros::Publisher estimate_pub_;
         ros::Publisher meas_pub_;
+        ros::Publisher center_pix_;
         ros::ServiceServer calib_attitude_;
 
         // ArUco Map Detector
@@ -61,6 +62,9 @@ namespace aruco_localizer {
         bool debugSaveInputFrames_;
         bool debugSaveOutputFrames_;
         std::string debugImagePath_;
+
+        // Save header time stamp of original image
+        std_msgs::Header image_header_;
 
         //
         // Methods

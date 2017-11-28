@@ -24,6 +24,7 @@ ArucoLocalizer::ArucoLocalizer() :
     // Create ROS publishers
     estimate_pub_ = nh_private_.advertise<geometry_msgs::PoseStamped>("estimate", 1);
     meas_pub_ = nh_private_.advertise<aruco_localization::MarkerMeasurementArray>("measurements", 1);
+    center_pix_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center", 1);
 
     // Create ROS services
     calib_attitude_ = nh_private_.advertiseService("calibrate_attitude", &ArucoLocalizer::calibrateAttitude, this);
@@ -109,7 +110,7 @@ void ArucoLocalizer::sendtf(const cv::Mat& rvec, const cv::Mat& tvec) {
     geometry_msgs::PoseStamped poseMsg;
     tf::poseTFToMsg(transform, poseMsg.pose);
     poseMsg.header.frame_id = "camera";
-    poseMsg.header.stamp = now;
+    poseMsg.header.stamp = image_header_.stamp;
     estimate_pub_.publish(poseMsg);
 }
 
@@ -119,6 +120,23 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
     // Detection of the board
     std::vector<aruco::Marker> detected_markers = mDetector_.detect(frame);
+
+    // Get the corner and center pixel data
+    for (auto idx : mmConfig_.getIndices(detected_markers))
+    {
+        cv::Point2f center = detected_markers[idx].getCenter();
+
+        // We want all transforms to use the same exact time
+        ros::Time now = ros::Time::now();
+        geometry_msgs::PointStamped pointMsg;
+        pointMsg.point.x = center.x;
+        pointMsg.point.y = center.y;
+//        pointMsg.header.frame_id = "aruco";
+//        pointMsg.header.stamp = now;
+        pointMsg.header = image_header_;
+        center_pix_.publish(pointMsg);
+
+    }
 
     if (drawDetections) {
         // print the markers detected that belongs to the markerset
@@ -184,6 +202,8 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 // ----------------------------------------------------------------------------
 
 void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, const sensor_msgs::CameraInfoConstPtr& cinfo) {
+    // Get image header (time)
+    image_header_ = image->header;
 
     cv_bridge::CvImagePtr cv_ptr;
     try {
