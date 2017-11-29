@@ -25,6 +25,7 @@ ArucoLocalizer::ArucoLocalizer() :
     estimate_pub_ = nh_private_.advertise<geometry_msgs::PoseStamped>("estimate", 1);
     // meas_pub_ = nh_private_.advertise<aruco_localization::MarkerMeasurementArray>("measurements", 1);
     center_pix_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center", 1);
+    corner_pix_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners", 1);
 
     // Create ROS services
     calib_attitude_ = nh_private_.advertiseService("calibrate_attitude", &ArucoLocalizer::calibrateAttitude, this);
@@ -126,8 +127,30 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
     {
         cv::Point2f center = detected_markers[idx].getCenter();
 
+        // corner pixels
+
+        // bottom left (SW)
+        float c0_x = detected_markers[idx][0].x;
+        float c0_y = detected_markers[idx][0].y;
+
+        // top left (NW)
+        float c1_x = detected_markers[idx][1].x;
+        float c1_y = detected_markers[idx][1].y;
+
+        // top right (NE)
+        float c2_x = detected_markers[idx][2].x;
+        float c2_y = detected_markers[idx][2].y;
+
+        // bottom right (SE)
+        float c3_x = detected_markers[idx][3].x;
+        float c3_y = detected_markers[idx][3].y;
+
+        std::vector<float> corner_pixels = {c0_x, c0_y, c1_x, c1_y, c2_x, c2_y, c3_x, c3_y};
+
+        // std::cout << "x_coord: " << std::to_string(c2_x) << "\t" << "y_coord: " << std::to_string(c2_y) << std::endl;
+
         // We want all transforms to use the same exact time
-        ros::Time now = ros::Time::now();
+        // ros::Time now = ros::Time::now();
         geometry_msgs::PointStamped pointMsg;
         pointMsg.point.x = center.x;
         pointMsg.point.y = center.y;
@@ -135,6 +158,14 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         pointMsg.header.stamp = image_header_.stamp;
         // pointMsg.header = image_header_;
         center_pix_.publish(pointMsg);
+
+        // publish corner pixel data
+        aruco_localization::FloatList cornersMsg;
+        cornersMsg.header.frame_id = "aruco_corners";
+        cornersMsg.header.stamp = image_header_.stamp;
+        cornersMsg.data = corner_pixels;
+        corner_pix_pub_.publish(cornersMsg);
+
 
     }
 

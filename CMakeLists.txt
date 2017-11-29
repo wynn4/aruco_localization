@@ -61,6 +61,7 @@ add_message_files(
   FILES
   MarkerMeasurement.msg
   MarkerMeasurementArray.msg
+  FloatList.msg
 )
 
 ## Generate services in the 'srv' folder

@@ -17,6 +17,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <aruco_localization/MarkerMeasurement.h>
 #include <aruco_localization/MarkerMeasurementArray.h>
+#include <aruco_localization/FloatList.h>
 #include <std_srvs/Trigger.h>
 
 #include <experimental/filesystem>
@@ -49,6 +50,7 @@ namespace aruco_localizer {
         ros::Publisher estimate_pub_;
         // ros::Publisher meas_pub_;
         ros::Publisher center_pix_;
+        ros::Publisher corner_pix_pub_;
         ros::ServiceServer calib_attitude_;
 
         // ArUco Map Detector
