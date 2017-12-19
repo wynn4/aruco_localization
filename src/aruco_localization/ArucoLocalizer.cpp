@@ -129,19 +129,19 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
         // corner pixels
 
-        // bottom left (SW)
+        // top left (NW)
         float c0_x = detected_markers[idx][0].x;
         float c0_y = detected_markers[idx][0].y;
 
-        // top left (NW)
+        // top right (NE)
         float c1_x = detected_markers[idx][1].x;
         float c1_y = detected_markers[idx][1].y;
 
-        // top right (NE)
+        // bottom right (SE)
         float c2_x = detected_markers[idx][2].x;
         float c2_y = detected_markers[idx][2].y;
 
-        // bottom right (SE)
+        // bottom left (SW)
         float c3_x = detected_markers[idx][3].x;
         float c3_y = detected_markers[idx][3].y;
 
