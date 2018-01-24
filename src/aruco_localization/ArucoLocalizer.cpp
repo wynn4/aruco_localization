@@ -113,6 +113,14 @@ void ArucoLocalizer::sendtf(const cv::Mat& rvec, const cv::Mat& tvec) {
     poseMsg.header.frame_id = "camera";
     poseMsg.header.stamp = image_header_.stamp;
     estimate_pub_.publish(poseMsg);
+
+    // Check for NaNs
+    double nanCheck = poseMsg.pose.position.x;
+
+    if (std::isnan(nanCheck))
+    {
+        nanCount_++;
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -243,7 +251,7 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
         ROS_ERROR("cv_bridge exception: %s", e.what());
         return;
     }
-
+    
     // Configure the Pose Tracker if it has not been configured before
     if (!mmPoseTracker_.isValid() && mmConfig_.isExpressedInMeters()) {
 
@@ -261,6 +269,26 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
 
     // Get image as a regular Mat
     cv::Mat frame = cv_ptr->image;
+
+    // const int mtype = frame.type();
+    // std::cout << std::to_string(mtype) << std::endl;
+
+    int rows = frame.rows;
+    int cols = frame.cols;
+
+    // THIS IS A MAJOR HACK.
+    // If our pose tracker has been giving us a bunch of NaNs
+    // we toss in a blank (black) frame to 'refresh' our view of the marker.
+    // Although extremely hacky, this seems to work OK for 'resetting' the pose tracker.
+
+    // TODO: Enhance this hack by only blanking when we have received a certain number
+    // of NaNs within a certain amount of time.
+    if (nanCount_ >= 10)
+    {
+        frame = cv::Mat::zeros(rows, cols, CV_8UC3);
+        nanCount_ = 0;
+    }
+
 
     if (debugSaveInputFrames_) saveInputFrame(frame);
 

@@ -68,6 +68,9 @@ namespace aruco_localizer {
         // Save header time stamp of original image
         std_msgs::Header image_header_;
 
+        // NaN counter
+        int nanCount_ = 0;
+
         //
         // Methods
         //
