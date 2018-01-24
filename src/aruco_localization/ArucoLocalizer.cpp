@@ -102,7 +102,7 @@ void ArucoLocalizer::sendtf(const cv::Mat& rvec, const cv::Mat& tvec) {
 
     // Note that `transform` is a measurement of the ArUco map w.r.t the camera,
     // therefore the inverse gives the transform from `aruco` to `camera`.
-    tf_br_.sendTransform(tf::StampedTransform(transform.inverse(), now, "aruco", "camera"));
+    // tf_br_.sendTransform(tf::StampedTransform(transform.inverse(), now, "aruco", "camera"));
 
     //
     // Publish measurement of the pose of the ArUco board w.r.t the camera frame
