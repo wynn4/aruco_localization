@@ -135,4 +135,5 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${aruc
 add_executable(aruco_localization src/aruco_localization_node.cpp src/aruco_localization/ArucoLocalizer.cpp)
 
 ## Specify libraries to link a library or executable target against
+add_dependencies(aruco_localization ${catkin_EXPORTED_TARGETS})
 target_link_libraries(aruco_localization ${catkin_LIBRARIES} ${OpenCV_LIBS} ${aruco_LIBS} stdc++fs)
