@@ -26,6 +26,7 @@ ArucoLocalizer::ArucoLocalizer() :
     // meas_pub_ = nh_private_.advertise<aruco_localization::MarkerMeasurementArray>("measurements", 1);
     center_pix_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center", 1);
     corner_pix_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners", 1);
+    distance_pub_ = nh_private_.advertise<std_msgs::Float32>("distance", 1);
 
     // Create ROS services
     calib_attitude_ = nh_private_.advertiseService("calibrate_attitude", &ArucoLocalizer::calibrateAttitude, this);
@@ -56,6 +57,9 @@ ArucoLocalizer::ArucoLocalizer() :
 
     // Initialize the attitude bias to zero
     quat_att_bias_.setRPY(0, 0, 0);
+
+    // Initialize focal length to something non-zero
+    f_ = 2000.0;
 
     // Create the `debug_image_path` if it doesn't exist
     std::experimental::filesystem::create_directories(debugImagePath_);
@@ -112,15 +116,21 @@ void ArucoLocalizer::sendtf(const cv::Mat& rvec, const cv::Mat& tvec) {
     tf::poseTFToMsg(transform, poseMsg.pose);
     poseMsg.header.frame_id = "camera";
     poseMsg.header.stamp = image_header_.stamp;
+
+    // poseMsg.pose.position.x = NAN;
+    // poseMsg.pose.position.y = NAN;
+    // poseMsg.pose.position.z = NAN;
+
+    // poseMsg.pose.orientation.x = NAN;
+    // poseMsg.pose.orientation.y = NAN;
+    // poseMsg.pose.orientation.z = NAN;
+    // poseMsg.pose.orientation.w = NAN;
+
     estimate_pub_.publish(poseMsg);
 
     // Check for NaNs
     double nanCheck = poseMsg.pose.position.x;
-
-    if (std::isnan(nanCheck))
-    {
-        nanCount_++;
-    }
+    if (std::isnan(nanCheck)) nanCount_++;
 }
 
 // ----------------------------------------------------------------------------
@@ -153,6 +163,17 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         float c3_x = detected_markers[idx][3].x;
         float c3_y = detected_markers[idx][3].y;
 
+        // compute approximate distance to the ArUco
+        float Ls_1_2 = sqrt((c0_x - c1_x)*(c0_x - c1_x) + (c0_y - c1_y)*(c0_y - c1_y));
+        float Ls_2_3 = sqrt((c1_x - c2_x)*(c1_x - c2_x) + (c1_y - c2_y)*(c1_y - c2_y));
+        float Ls_3_4 = sqrt((c2_x - c3_x)*(c2_x - c3_x) + (c2_y - c3_y)*(c2_y - c3_y));
+        float Ls_4_1 = sqrt((c3_x - c0_x)*(c3_x - c0_x) + (c3_y - c0_y)*(c3_y - c0_y));
+
+        // take the average
+        float Ls = (Ls_1_2 + Ls_2_3 + Ls_3_4 + Ls_4_1) / 4.0;
+        // compute the distance
+        float z_c = (markerSize_ * f_) / Ls;
+
         std::vector<float> corner_pixels = {c0_x, c0_y, c1_x, c1_y, c2_x, c2_y, c3_x, c3_y};
 
         // std::cout << "x_coord: " << std::to_string(c2_x) << "\t" << "y_coord: " << std::to_string(c2_y) << std::endl;
@@ -173,6 +194,13 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         cornersMsg.header.stamp = image_header_.stamp;
         cornersMsg.data = corner_pixels;
         corner_pix_pub_.publish(cornersMsg);
+
+        // publish distance data
+        std_msgs::Float32 distanceMsg;
+        distanceMsg.data = z_c;
+        distance_pub_.publish(distanceMsg);
+
+
 
 
     }
@@ -252,11 +280,15 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
         return;
     }
     
+
     // Configure the Pose Tracker if it has not been configured before
     if (!mmPoseTracker_.isValid() && mmConfig_.isExpressedInMeters()) {
 
         // Extract ROS camera_info (i.e., K and D) for ArUco library
         camParams_ = ros2arucoCamParams(cinfo);
+
+        // Grab the focal length for use later
+        f_ = (cinfo->K[0] + cinfo->K[4]) / 2.0;
 
         // Now, if the camera params have been ArUco-ified, set up the tracker
         if (camParams_.isValid())

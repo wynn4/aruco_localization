@@ -20,6 +20,8 @@
 #include <aruco_localization/FloatList.h>
 #include <std_srvs/Trigger.h>
 
+#include <std_msgs/Float32.h>
+
 #include <experimental/filesystem>
 
 namespace aruco_localizer {
@@ -51,6 +53,7 @@ namespace aruco_localizer {
         // ros::Publisher meas_pub_;
         ros::Publisher center_pix_;
         ros::Publisher corner_pix_pub_;
+        ros::Publisher distance_pub_;
         ros::ServiceServer calib_attitude_;
 
         // ArUco Map Detector
@@ -70,6 +73,9 @@ namespace aruco_localizer {
 
         // NaN counter
         int nanCount_ = 0;
+
+        // Camera Focal length
+        float f_;
 
         //
         // Methods
