@@ -51,9 +51,17 @@ namespace aruco_localizer {
         // ROS publishers and subscribers
         ros::Publisher estimate_pub_;
         // ros::Publisher meas_pub_;
-        ros::Publisher center_pix_;
-        ros::Publisher corner_pix_pub_;
-        ros::Publisher distance_pub_;
+
+        // Outer marker of the nested marker
+        ros::Publisher center_pix_outer_pub_;
+        ros::Publisher corner_pix_outer_pub_;
+        ros::Publisher distance_outer_pub_;
+
+        // Inner marker of the nested marker
+        ros::Publisher center_pix_inner_pub_;
+        ros::Publisher corner_pix_inner_pub_;
+        ros::Publisher distance_inner_pub_;
+
         ros::ServiceServer calib_attitude_;
 
         // ArUco Map Detector
@@ -76,6 +84,13 @@ namespace aruco_localizer {
 
         // Camera Focal length
         float f_;
+
+        // IDs for outer and inner marker
+        int id_outer_;
+        int id_inner_;
+
+        // Inner marker size (size of the outer marker is markerSize_)
+        double markerSize_inner_;
 
         //
         // Methods

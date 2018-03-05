@@ -11,6 +11,9 @@ ArucoLocalizer::ArucoLocalizer() :
     // Read in ROS params
     std::string mmConfigFile = nh_private_.param<std::string>("markermap_config", "");
     markerSize_ = nh_private_.param<double>("marker_size", 0.0298);
+    markerSize_inner_ = nh_private_.param<double>("marker_size_inner", 0.0100);
+    id_outer_ = nh_private_.param<int>("id_outer", -1);
+    id_inner_ = nh_private_.param<int>("id_inner", -1);
     nh_private_.param<bool>("show_output_video", showOutputVideo_, false);
     nh_private_.param<bool>("debug_save_input_frames", debugSaveInputFrames_, false);
     nh_private_.param<bool>("debug_save_output_frames", debugSaveOutputFrames_, false);
@@ -24,9 +27,13 @@ ArucoLocalizer::ArucoLocalizer() :
     // Create ROS publishers
     estimate_pub_ = nh_private_.advertise<geometry_msgs::PoseStamped>("estimate", 1);
     // meas_pub_ = nh_private_.advertise<aruco_localization::MarkerMeasurementArray>("measurements", 1);
-    center_pix_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center", 1);
-    corner_pix_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners", 1);
-    distance_pub_ = nh_private_.advertise<std_msgs::Float32>("distance", 1);
+    center_pix_outer_pub_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center_outer", 1);
+    corner_pix_outer_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners_outer", 1);
+    distance_outer_pub_ = nh_private_.advertise<std_msgs::Float32>("distance_outer", 1);
+
+    center_pix_inner_pub_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center_inner", 1);
+    corner_pix_inner_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners_inner", 1);
+    distance_inner_pub_ = nh_private_.advertise<std_msgs::Float32>("distance_inner", 1);
 
     // Create ROS services
     calib_attitude_ = nh_private_.advertiseService("calibrate_attitude", &ArucoLocalizer::calibrateAttitude, this);
@@ -143,11 +150,6 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
     // Get the corner and center pixel data
     for (auto idx : mmConfig_.getIndices(detected_markers))
     {
-        if (detected_markers[idx].id == 166)
-        {
-            std::cout << std::to_string(detected_markers[idx].ssize) << "\n" << std::endl;
-        }
-
         cv::Point2f center = detected_markers[idx].getCenter();
 
         // corner pixels
@@ -177,36 +179,57 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         // take the average
         float Ls = (Ls_1_2 + Ls_2_3 + Ls_3_4 + Ls_4_1) / 4.0;
         // compute the distance
-        float z_c = (markerSize_ * f_) / Ls;
+        // float z_c = (markerSize_ * f_) / Ls;
 
         std::vector<float> corner_pixels = {c0_x, c0_y, c1_x, c1_y, c2_x, c2_y, c3_x, c3_y};
 
         // std::cout << "x_coord: " << std::to_string(c2_x) << "\t" << "y_coord: " << std::to_string(c2_y) << std::endl;
 
-        // We want all transforms to use the same exact time
-        // ros::Time now = ros::Time::now();
-        geometry_msgs::PointStamped pointMsg;
-        pointMsg.point.x = center.x;
-        pointMsg.point.y = center.y;
-        pointMsg.header.frame_id = "aruco_center";
-        pointMsg.header.stamp = image_header_.stamp;
-        // pointMsg.header = image_header_;
-        center_pix_.publish(pointMsg);
+        if (detected_markers[idx].id == id_outer_)
+        {
+            geometry_msgs::PointStamped pointMsg;
+            pointMsg.point.x = center.x;
+            pointMsg.point.y = center.y;
+            pointMsg.header.frame_id = "aruco_center";
+            pointMsg.header.stamp = image_header_.stamp;
+            // pointMsg.header = image_header_;
+            center_pix_outer_pub_.publish(pointMsg);
 
-        // publish corner pixel data
-        aruco_localization::FloatList cornersMsg;
-        cornersMsg.header.frame_id = "aruco_corners";
-        cornersMsg.header.stamp = image_header_.stamp;
-        cornersMsg.data = corner_pixels;
-        corner_pix_pub_.publish(cornersMsg);
+            // publish corner pixel data
+            aruco_localization::FloatList cornersMsg;
+            cornersMsg.header.frame_id = "aruco_corners";
+            cornersMsg.header.stamp = image_header_.stamp;
+            cornersMsg.data = corner_pixels;
+            corner_pix_outer_pub_.publish(cornersMsg);
 
-        // publish distance data
-        std_msgs::Float32 distanceMsg;
-        distanceMsg.data = z_c;
-        distance_pub_.publish(distanceMsg);
+            // publish distance data
+            std_msgs::Float32 distanceMsg;
+            distanceMsg.data = (markerSize_ * f_) / Ls;
+            distance_outer_pub_.publish(distanceMsg);
+        }
 
+        if (detected_markers[idx].id == id_inner_)
+        {
+            geometry_msgs::PointStamped pointMsg;
+            pointMsg.point.x = center.x;
+            pointMsg.point.y = center.y;
+            pointMsg.header.frame_id = "aruco_center";
+            pointMsg.header.stamp = image_header_.stamp;
+            // pointMsg.header = image_header_;
+            center_pix_inner_pub_.publish(pointMsg);
 
+            // publish corner pixel data
+            aruco_localization::FloatList cornersMsg;
+            cornersMsg.header.frame_id = "aruco_corners";
+            cornersMsg.header.stamp = image_header_.stamp;
+            cornersMsg.data = corner_pixels;
+            corner_pix_inner_pub_.publish(cornersMsg);
 
+            // publish distance data
+            std_msgs::Float32 distanceMsg;
+            distanceMsg.data = (markerSize_inner_ * f_) / Ls;
+            distance_inner_pub_.publish(distanceMsg);
+        }
 
     }
 
