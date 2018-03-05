@@ -143,6 +143,11 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
     // Get the corner and center pixel data
     for (auto idx : mmConfig_.getIndices(detected_markers))
     {
+        if (detected_markers[idx].id == 166)
+        {
+            std::cout << std::to_string(detected_markers[idx].ssize) << "\n" << std::endl;
+        }
+
         cv::Point2f center = detected_markers[idx].getCenter();
 
         // corner pixels
