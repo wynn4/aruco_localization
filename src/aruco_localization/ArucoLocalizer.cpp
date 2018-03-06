@@ -102,7 +102,7 @@ bool ArucoLocalizer::calibrateAttitude(std_srvs::Trigger::Request &req, std_srvs
 void ArucoLocalizer::sendtf(const cv::Mat& rvec, const cv::Mat& tvec) {
 
     // We want all transforms to use the same exact time
-    ros::Time now = ros::Time::now();
+    // ros::Time now = ros::Time::now();
 
     // Create the transform from the camera to the ArUco Marker Map
     tf::Transform transform = aruco2tf(rvec, tvec);
@@ -203,8 +203,9 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             corner_pix_outer_pub_.publish(cornersMsg);
 
             // publish distance data
+            float z_c = (markerSize_ * f_) / Ls;
             std_msgs::Float32 distanceMsg;
-            distanceMsg.data = (markerSize_ * f_) / Ls;
+            distanceMsg.data = z_c;
             distance_outer_pub_.publish(distanceMsg);
         }
 
@@ -226,8 +227,9 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             corner_pix_inner_pub_.publish(cornersMsg);
 
             // publish distance data
+            float z_c = (markerSize_inner_ * f_) / Ls;
             std_msgs::Float32 distanceMsg;
-            distanceMsg.data = (markerSize_inner_ * f_) / Ls;
+            distanceMsg.data = z_c;
             distance_inner_pub_.publish(distanceMsg);
         }
 
