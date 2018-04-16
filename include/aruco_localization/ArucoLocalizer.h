@@ -6,15 +6,18 @@
 #include <ros/ros.h>
 #include <aruco/aruco.h>
 #include <opencv2/opencv.hpp>
+#include <eigen3/Eigen/Dense>
 
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
 #include <image_geometry/pinhole_camera_model.h>
+#include <tf/tf.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
 #include <geometry_msgs/PoseStamped.h>
+#include <nav_msgs/Odometry.h>
 #include <aruco_localization/MarkerMeasurement.h>
 #include <aruco_localization/MarkerMeasurementArray.h>
 #include <aruco_localization/FloatList.h>
@@ -35,6 +38,9 @@ namespace aruco_localizer {
         // ROS node handles
         ros::NodeHandle nh_;
         ros::NodeHandle nh_private_;
+
+        // state subscriber
+        ros::Subscriber state_sub_;
 
         // image transport pub/sub
         image_transport::ImageTransport it_;
@@ -82,9 +88,6 @@ namespace aruco_localizer {
         // NaN counter
         int nanCount_ = 0;
 
-        // Camera Focal length
-        float f_;
-
         // IDs for outer and inner marker
         int id_outer_;
         int id_inner_;
@@ -92,12 +95,56 @@ namespace aruco_localizer {
         // Inner marker size (size of the outer marker is markerSize_)
         double markerSize_inner_;
 
+        // Quadcopter Euler angles
+        double phi_;
+        double theta_;
+        double psi_;
+
+        // Level-Frame mapping stuff
+        std::vector<cv::Point2f> corners_;
+        std::vector<cv::Point2f> cornersUndist_;
+        std::vector<cv::Point2f> levelCorners_;
+
+        Eigen::Matrix<float, 3, 4> uvf_;
+        Eigen::Matrix<float, 3, 4> hom_;
+
+        Eigen::Matrix3f R_v1_v2_;
+        Eigen::Matrix3f R_v2_b_;
+        Eigen::Matrix3f R_v1_b_;
+        Eigen::Matrix3f R_vlc_v1_;
+        Eigen::Matrix3f R_b_m_;
+        Eigen::Matrix3f R_m_c_;
+        Eigen::Matrix3f R_c_vlc_;
+
+        cv::Point2f corner0_;
+        cv::Point2f corner1_;
+        cv::Point2f corner2_;
+        cv::Point2f corner3_;
+
+        cv::Point2f level_corner0_;
+        cv::Point2f level_corner1_;
+        cv::Point2f level_corner2_;
+        cv::Point2f level_corner3_;
+
+        cv::Mat cameraMatrix_;
+        cv::Mat distortionCoeff_;
+
+        // Camera Focal length
+        float f_;
+        float fx_;
+        float fy_;
+
+        bool first_;
+
         //
         // Methods
         //
 
         // image_transport camera subscriber
         void cameraCallback(const sensor_msgs::ImageConstPtr& image, const sensor_msgs::CameraInfoConstPtr& cinfo);
+
+        // quadcopter state subscriber
+        void stateCallback(const nav_msgs::OdometryConstPtr& msg);
 
         // service handlers
         bool calibrateAttitude(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
