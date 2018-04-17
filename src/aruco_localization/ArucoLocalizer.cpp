@@ -11,10 +11,65 @@ ArucoLocalizer::ArucoLocalizer() :
     // Read in ROS params
     std::string mmConfigFile = nh_private_.param<std::string>("markermap_config", "");
     markerSize_ = nh_private_.param<double>("marker_size", 0.0298);
+    markerSize_inner_ = nh_private_.param<double>("marker_size_inner", 0.0100);
+    id_outer_ = nh_private_.param<int>("id_outer", -1);
+    id_inner_ = nh_private_.param<int>("id_inner", -1);
     nh_private_.param<bool>("show_output_video", showOutputVideo_, false);
     nh_private_.param<bool>("debug_save_input_frames", debugSaveInputFrames_, false);
     nh_private_.param<bool>("debug_save_output_frames", debugSaveOutputFrames_, false);
     nh_private_.param<std::string>("debug_image_path", debugImagePath_, "/tmp/arucoimages");
+
+    // Initialize arrays
+    corners_.reserve(4);
+    cornersUndist_.reserve(4);
+    levelCorners_.reserve(4);
+    
+    double defaultIntrinsics[9] = {1000.0, 0.0, 320.0, 0.0, 1000.0, 240.0, 0.0, 0.0, 1.0};
+    cv::Mat temp = cv::Mat(3,3, CV_64FC1, defaultIntrinsics);
+    temp.copyTo(cameraMatrix_);
+
+    double defaultDistortion[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+    temp = cv::Mat(5,1, CV_64FC1, defaultDistortion);
+    temp.copyTo(distortionCoeff_);
+
+    R_v1_v2_ = Eigen::Matrix3f::Identity();
+    R_v2_b_ = Eigen::Matrix3f::Identity();
+    R_v1_b_.setZero();
+    R_vlc_v1_.setZero();
+    R_vlc_v1_(0,1) = -1.0;
+    R_vlc_v1_(1,0) = 1.0;
+    R_vlc_v1_(2,2) = 1.0;
+    // R_vlc_v1 = np.array([[0., -1., 0.],
+    //                      [1., 0., 0.],
+    //                      [0., 0., 1.]])
+
+    // Just set to identity for now (assumes that camera is mounted pointing straight down)
+    R_b_m_ = Eigen::Matrix3f::Identity();
+
+    R_m_c_.setZero();
+    R_m_c_(0,1) = 1.0;
+    R_m_c_(1,0) = -1.0;
+    R_m_c_(2,2) = 1.0;
+    // R_m_c = np.array([[0., 1., 0.],
+    //                   [-1., 0., 0.],
+    //                   [0., 0., 1.]])
+
+    R_c_vlc_.setZero();
+
+
+
+    // Initialize the attitude bias to zero
+    quat_att_bias_.setRPY(0, 0, 0);
+
+    // Initialize focal length to something non-zero
+    f_ = 2000.0;
+    fx_ = 2000.0;
+    fy_ = 2000.0;
+
+    first_ = true;
+
+    // Subscribe to state
+    state_sub_ = nh_.subscribe("/quadcopter/ground_truth/odometry/NED", 1, &ArucoLocalizer::stateCallback, this);
 
     // Subscribe to input video feed and publish output video feed
     it_ = image_transport::ImageTransport(nh_);
@@ -24,9 +79,13 @@ ArucoLocalizer::ArucoLocalizer() :
     // Create ROS publishers
     estimate_pub_ = nh_private_.advertise<geometry_msgs::PoseStamped>("estimate", 1);
     // meas_pub_ = nh_private_.advertise<aruco_localization::MarkerMeasurementArray>("measurements", 1);
-    center_pix_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center", 1);
-    corner_pix_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners", 1);
-    distance_pub_ = nh_private_.advertise<std_msgs::Float32>("distance", 1);
+    center_pix_outer_pub_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center_outer", 1);
+    corner_pix_outer_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners_outer", 1);
+    distance_outer_pub_ = nh_private_.advertise<std_msgs::Float32>("distance_outer", 1);
+
+    center_pix_inner_pub_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center_inner", 1);
+    corner_pix_inner_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners_inner", 1);
+    distance_inner_pub_ = nh_private_.advertise<std_msgs::Float32>("distance_inner", 1);
 
     // Create ROS services
     calib_attitude_ = nh_private_.advertiseService("calibrate_attitude", &ArucoLocalizer::calibrateAttitude, this);
@@ -55,11 +114,7 @@ ArucoLocalizer::ArucoLocalizer() :
     // Misc
     //
 
-    // Initialize the attitude bias to zero
-    quat_att_bias_.setRPY(0, 0, 0);
-
-    // Initialize focal length to something non-zero
-    f_ = 2000.0;
+    
 
     // Create the `debug_image_path` if it doesn't exist
     std::experimental::filesystem::create_directories(debugImagePath_);
@@ -95,7 +150,7 @@ bool ArucoLocalizer::calibrateAttitude(std_srvs::Trigger::Request &req, std_srvs
 void ArucoLocalizer::sendtf(const cv::Mat& rvec, const cv::Mat& tvec) {
 
     // We want all transforms to use the same exact time
-    ros::Time now = ros::Time::now();
+    // ros::Time now = ros::Time::now();
 
     // Create the transform from the camera to the ArUco Marker Map
     tf::Transform transform = aruco2tf(rvec, tvec);
@@ -148,60 +203,179 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         // corner pixels
 
         // top left (NW)
-        float c0_x = detected_markers[idx][0].x;
-        float c0_y = detected_markers[idx][0].y;
+        corner0_.x = detected_markers[idx][0].x;
+        corner0_.y = detected_markers[idx][0].y;
+        // float c0_x = detected_markers[idx][0].x;
+        // float c0_y = detected_markers[idx][0].y;
 
         // top right (NE)
-        float c1_x = detected_markers[idx][1].x;
-        float c1_y = detected_markers[idx][1].y;
+        corner1_.x = detected_markers[idx][1].x;
+        corner1_.y = detected_markers[idx][1].y;
+        // float c1_x = detected_markers[idx][1].x;
+        // float c1_y = detected_markers[idx][1].y;
 
         // bottom right (SE)
-        float c2_x = detected_markers[idx][2].x;
-        float c2_y = detected_markers[idx][2].y;
+        corner2_.x = detected_markers[idx][2].x;
+        corner2_.y = detected_markers[idx][2].y;
+        // float c2_x = detected_markers[idx][2].x;
+        // float c2_y = detected_markers[idx][2].y;
 
         // bottom left (SW)
-        float c3_x = detected_markers[idx][3].x;
-        float c3_y = detected_markers[idx][3].y;
+        corner3_.x = detected_markers[idx][3].x;
+        corner3_.y = detected_markers[idx][3].y;
+        // float c3_x = detected_markers[idx][3].x;
+        // float c3_y = detected_markers[idx][3].y;
+
+        // add corners to our corners_ vector
+        corners_.push_back(corner0_);
+        corners_.push_back(corner1_);
+        corners_.push_back(corner2_);
+        corners_.push_back(corner3_);
 
         // compute approximate distance to the ArUco
-        float Ls_1_2 = sqrt((c0_x - c1_x)*(c0_x - c1_x) + (c0_y - c1_y)*(c0_y - c1_y));
-        float Ls_2_3 = sqrt((c1_x - c2_x)*(c1_x - c2_x) + (c1_y - c2_y)*(c1_y - c2_y));
-        float Ls_3_4 = sqrt((c2_x - c3_x)*(c2_x - c3_x) + (c2_y - c3_y)*(c2_y - c3_y));
-        float Ls_4_1 = sqrt((c3_x - c0_x)*(c3_x - c0_x) + (c3_y - c0_y)*(c3_y - c0_y));
+        float Ls_1_2 = sqrt((corner0_.x - corner1_.x)*(corner0_.x - corner1_.x) + (corner0_.y - corner1_.y)*(corner0_.y - corner1_.y));
+        float Ls_2_3 = sqrt((corner1_.x - corner2_.x)*(corner1_.x - corner2_.x) + (corner1_.y - corner2_.y)*(corner1_.y - corner2_.y));
+        float Ls_3_4 = sqrt((corner2_.x - corner3_.x)*(corner2_.x - corner3_.x) + (corner2_.y - corner3_.y)*(corner2_.y - corner3_.y));
+        float Ls_4_1 = sqrt((corner3_.x - corner0_.x)*(corner3_.x - corner0_.x) + (corner3_.y - corner0_.y)*(corner3_.y - corner0_.y));
 
         // take the average
         float Ls = (Ls_1_2 + Ls_2_3 + Ls_3_4 + Ls_4_1) / 4.0;
         // compute the distance
-        float z_c = (markerSize_ * f_) / Ls;
-
-        std::vector<float> corner_pixels = {c0_x, c0_y, c1_x, c1_y, c2_x, c2_y, c3_x, c3_y};
+        // float z_c = (markerSize_ * f_) / Ls;
 
         // std::cout << "x_coord: " << std::to_string(c2_x) << "\t" << "y_coord: " << std::to_string(c2_y) << std::endl;
 
-        // We want all transforms to use the same exact time
-        // ros::Time now = ros::Time::now();
-        geometry_msgs::PointStamped pointMsg;
-        pointMsg.point.x = center.x;
-        pointMsg.point.y = center.y;
-        pointMsg.header.frame_id = "aruco_center";
-        pointMsg.header.stamp = image_header_.stamp;
-        // pointMsg.header = image_header_;
-        center_pix_.publish(pointMsg);
+        //
+        // Transform Points into the Virtual-Level-Frame
+        //
 
-        // publish corner pixel data
-        aruco_localization::FloatList cornersMsg;
-        cornersMsg.header.frame_id = "aruco_corners";
-        cornersMsg.header.stamp = image_header_.stamp;
-        cornersMsg.data = corner_pixels;
-        corner_pix_pub_.publish(cornersMsg);
+        // Undistort the corners
+        cv::undistortPoints(corners_, cornersUndist_, cameraMatrix_, distortionCoeff_);
+        corners_.clear();
 
-        // publish distance data
-        std_msgs::Float32 distanceMsg;
-        distanceMsg.data = z_c;
-        distance_pub_.publish(distanceMsg);
+        // De-normalize (multiply by focal length) but still keep corner locations wrt image center
+        for (int i=0; i<4; i++)
+        {
+            cornersUndist_[i].x = cornersUndist_[i].x * fx_;
+            cornersUndist_[i].y = cornersUndist_[i].y * fy_;
+        }
+
+        // Throw the undistorted corners and focal length into our Eigen uvf matrix (3x4) uvf_ = [x_pix; y_pix; f]
+        uvf_(0,0) = cornersUndist_[0].x;
+        uvf_(0,1) = cornersUndist_[1].x;
+        uvf_(0,2) = cornersUndist_[2].x;
+        uvf_(0,3) = cornersUndist_[3].x;
+
+        uvf_(1,0) = cornersUndist_[0].y;
+        uvf_(1,1) = cornersUndist_[1].y;
+        uvf_(1,2) = cornersUndist_[2].y;
+        uvf_(1,3) = cornersUndist_[3].y;
+
+        uvf_(2,0) = f_;
+        uvf_(2,1) = f_;
+        uvf_(2,2) = f_;
+        uvf_(2,3) = f_;
+
+        // Setup rotations
+        // pre-evaluate sines and cosines for rotation matrix
+        float sphi = sin(phi_);
+        float cphi = cos(phi_);
+        float stheta = sin(theta_);
+        float ctheta = cos(theta_);
+
+        // Update rotation from v1 to v2 frame with latest pitch angle
+        R_v1_v2_(0,0) = ctheta;
+        R_v1_v2_(0,2) = -stheta;
+        R_v1_v2_(2,0) = stheta;
+        R_v1_v2_(2,2) = ctheta;
+
+        // R_v1_v2 = np.array([[ctheta, 0., -stheta],
+        //                     [0., 1., 0.],
+        //                     [stheta, 0., ctheta]])
+
+        // Update rotation from v2 to body frame with latest roll angle
+        R_v2_b_(1,1) = cphi;
+        R_v2_b_(1,2) = sphi;
+        R_v2_b_(2,1) = -sphi;
+        R_v2_b_(2,2) = cphi;
+
+        // R_v2_b = np.array([[1., 0., 0.],
+        //                    [0., cphi, sphi],
+        //                    [0., -sphi, cphi]])
+
+        // Rotation from v1 to body frame
+        R_v1_b_ = R_v2_b_ * R_v1_v2_;
+
+        // Compute whole rotation from camera frame to level frame
+        R_c_vlc_ = (R_m_c_ * R_b_m_ * R_v1_b_ * R_vlc_v1_).transpose();  // R_c_vlc = R_vlc_c.transpose()
+
+        // Use the Homography to get the corner locations in the level frame
+        hom_ = R_c_vlc_ * uvf_;  // 3x4
+
+        level_corner0_.x = f_ * (hom_(0,0)/hom_(2,0));  // u1
+        level_corner0_.y = f_ * (hom_(1,0)/hom_(2,0));  // v1
+
+        level_corner1_.x = f_ * (hom_(0,1)/hom_(2,1));  // u2
+        level_corner1_.y = f_ * (hom_(1,1)/hom_(2,1));  // v2
+
+        level_corner2_.x = f_ * (hom_(0,2)/hom_(2,2));  // u3
+        level_corner2_.y = f_ * (hom_(1,2)/hom_(2,2));  // v3
+
+        level_corner3_.x = f_ * (hom_(0,3)/hom_(2,3));  // u4
+        level_corner3_.y = f_ * (hom_(1,3)/hom_(2,3));  // v4
+
+        // Fill out the corner pixels vector {original_corner_pix, level_corner_pix}
+        std::vector<float> corner_pixels = {corner0_.x, corner0_.y, corner1_.x, corner1_.y, corner2_.x, corner2_.y, corner3_.x, corner3_.y
+            , level_corner0_.x, level_corner0_.y, level_corner1_.x, level_corner1_.y, level_corner2_.x, level_corner2_.y, level_corner3_.x, level_corner3_.y};
 
 
+        if (detected_markers[idx].id == id_outer_)
+        {
+            geometry_msgs::PointStamped pointMsg;
+            pointMsg.point.x = center.x;
+            pointMsg.point.y = center.y;
+            pointMsg.header.frame_id = "aruco_center";
+            pointMsg.header.stamp = image_header_.stamp;
+            // pointMsg.header = image_header_;
+            center_pix_outer_pub_.publish(pointMsg);
 
+            // publish corner pixel data
+            aruco_localization::FloatList cornersMsg;
+            cornersMsg.header.frame_id = "aruco_corners";
+            cornersMsg.header.stamp = image_header_.stamp;
+            cornersMsg.data = corner_pixels;
+            corner_pix_outer_pub_.publish(cornersMsg);
+
+            // publish distance data
+            float z_c = (markerSize_ * f_) / Ls;
+            std_msgs::Float32 distanceMsg;
+            distanceMsg.data = z_c;
+            distance_outer_pub_.publish(distanceMsg);
+        }
+
+        if (detected_markers[idx].id == id_inner_)
+        {
+            geometry_msgs::PointStamped pointMsg;
+            pointMsg.point.x = center.x;
+            pointMsg.point.y = center.y;
+            pointMsg.header.frame_id = "aruco_center";
+            pointMsg.header.stamp = image_header_.stamp;
+            // pointMsg.header = image_header_;
+            center_pix_inner_pub_.publish(pointMsg);
+
+            // publish corner pixel data
+            aruco_localization::FloatList cornersMsg;
+            cornersMsg.header.frame_id = "aruco_corners";
+            cornersMsg.header.stamp = image_header_.stamp;
+            cornersMsg.data = corner_pixels;
+            corner_pix_inner_pub_.publish(cornersMsg);
+
+            // publish distance data
+            float z_c = (markerSize_inner_ * f_) / Ls;
+            std_msgs::Float32 distanceMsg;
+            distanceMsg.data = z_c;
+            distance_inner_pub_.publish(distanceMsg);
+        }
 
     }
 
@@ -209,6 +383,29 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         // print the markers detected that belongs to the markerset
         for (auto idx : mmConfig_.getIndices(detected_markers))
             detected_markers[idx].draw(frame, cv::Scalar(0, 0, 255), 1);
+
+        cv::circle(frame, cv::Point(-100 + 1288/2, -100 + 964/2), 10, cv::Scalar(0,255,0));
+        cv::circle(frame, cv::Point(100 + 1288/2, -100 + 964/2), 10, cv::Scalar(0,255,0));
+        cv::circle(frame, cv::Point(100 + 1288/2, 100 + 964/2), 10, cv::Scalar(0,255,0));
+        cv::circle(frame, cv::Point(-100 + 1288/2, 100 + 964/2), 10, cv::Scalar(0,255,0));
+
+        levelCorners_.push_back(level_corner0_);
+        levelCorners_.push_back(level_corner1_);
+        levelCorners_.push_back(level_corner2_);
+        levelCorners_.push_back(level_corner3_);
+
+        for (int i=0; i<4; i++)
+        {
+            levelCorners_[i].x = levelCorners_[i].x + 1288.0/2.0;
+            levelCorners_[i].y = levelCorners_[i].y + 964.0/2.0;
+        }
+        
+        cv::circle(frame, levelCorners_[0], 10, cv::Scalar(0,255,255));
+        cv::circle(frame, levelCorners_[1], 10, cv::Scalar(0,255,255));
+        cv::circle(frame, levelCorners_[2], 10, cv::Scalar(0,255,255));
+        cv::circle(frame, levelCorners_[3], 10, cv::Scalar(0,255,255));
+
+        levelCorners_.clear();
     }
 
     //
@@ -279,6 +476,33 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
         ROS_ERROR("cv_bridge exception: %s", e.what());
         return;
     }
+
+    // First time this callback fires, populate the cameraMatrix and distortionCoeffs and other fields with cinfo data
+    if (first_)
+    {
+        // Fill out cameraMatrix_ and distortioncoeff_
+        for(int i=0; i<9; ++i)
+            cameraMatrix_.at<double>(i%3, i-(i%3)*3) = cinfo->K[i];
+
+        for(int i=0; i<5; ++i)
+            distortionCoeff_.at<double>(i, 0) = cinfo->D[i];
+
+        // Grab the average focal length for use later
+        f_ = (cinfo->K[0] + cinfo->K[4]) / 2.0;
+
+        // Grab x and y focal lengths
+        fx_ = cinfo->K[0];
+        fy_ = cinfo->K[4];
+
+        // Grab image height and width
+        im_height_ = cinfo->height;
+        im_width_ = cinfo->width;
+
+        // Done
+        first_ = false;
+        // std::cout << "K = "<< std::endl << " "  << cameraMatrix_ << std::endl << std::endl;
+        // std::cout << "D = "<< std::endl << " "  << distortionCoeff_ << std::endl << std::endl;
+    }
     
 
     // Configure the Pose Tracker if it has not been configured before
@@ -286,9 +510,6 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
 
         // Extract ROS camera_info (i.e., K and D) for ArUco library
         camParams_ = ros2arucoCamParams(cinfo);
-
-        // Grab the focal length for use later
-        f_ = (cinfo->K[0] + cinfo->K[4]) / 2.0;
 
         // Now, if the camera params have been ArUco-ified, set up the tracker
         if (camParams_.isValid())
@@ -305,9 +526,6 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     // const int mtype = frame.type();
     // std::cout << std::to_string(mtype) << std::endl;
 
-    int rows = frame.rows;
-    int cols = frame.cols;
-
     // THIS IS A MAJOR HACK.
     // If our pose tracker has been giving us a bunch of NaNs
     // we toss in a blank (black) frame to 'refresh' our view of the marker.
@@ -317,7 +535,7 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     // of NaNs within a certain amount of time.
     if (nanCount_ >= 10)
     {
-        frame = cv::Mat::zeros(rows, cols, CV_8UC3);
+        frame = cv::Mat::zeros(im_height_, im_width_, CV_8UC3);
         nanCount_ = 0;
     }
 
@@ -339,6 +557,17 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
 
     // Output modified video stream
     image_pub_.publish(cv_ptr->toImageMsg());
+}
+
+void ArucoLocalizer::stateCallback(const nav_msgs::OdometryConstPtr &msg)
+{
+    // Get the roll and pitch angles for level-frame mapping
+    // Convert Quaternion to RPY
+    tf::Quaternion tf_quat;
+    tf::quaternionMsgToTF(msg->pose.pose.orientation, tf_quat);
+    tf::Matrix3x3(tf_quat).getRPY(phi_, theta_, psi_);
+    // phi_ = phi_;
+    // theta_ = theta_;
 }
 
 // ----------------------------------------------------------------------------

@@ -27,6 +27,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 # aruco installs `Findaruco.cmake` to /usr/local/lib/cmake
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/usr/local/lib/cmake/")
@@ -127,7 +128,7 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(include ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${aruco_INCLUDE_DIRS})
+include_directories(include ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${aruco_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
