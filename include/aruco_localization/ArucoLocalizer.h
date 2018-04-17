@@ -108,10 +108,10 @@ namespace aruco_localizer {
         Eigen::Matrix<float, 3, 4> uvf_;
         Eigen::Matrix<float, 3, 4> hom_;
 
+        Eigen::Matrix3f R_vlc_v1_;
         Eigen::Matrix3f R_v1_v2_;
         Eigen::Matrix3f R_v2_b_;
         Eigen::Matrix3f R_v1_b_;
-        Eigen::Matrix3f R_vlc_v1_;
         Eigen::Matrix3f R_b_m_;
         Eigen::Matrix3f R_m_c_;
         Eigen::Matrix3f R_c_vlc_;
@@ -134,6 +134,11 @@ namespace aruco_localizer {
         float fx_;
         float fy_;
 
+        // Image dimensions
+        int im_height_;
+        int im_width_;
+
+        // Misc
         bool first_;
 
         //

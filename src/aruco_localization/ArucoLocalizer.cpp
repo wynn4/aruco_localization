@@ -243,8 +243,6 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         // compute the distance
         // float z_c = (markerSize_ * f_) / Ls;
 
-        std::vector<float> corner_pixels = {corner0_.x, corner0_.y, corner1_.x, corner1_.y, corner2_.x, corner2_.y, corner3_.x, corner3_.y};
-
         // std::cout << "x_coord: " << std::to_string(c2_x) << "\t" << "y_coord: " << std::to_string(c2_y) << std::endl;
 
         //
@@ -285,7 +283,7 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         float stheta = sin(theta_);
         float ctheta = cos(theta_);
 
-        // Update our rotations
+        // Update rotation from v1 to v2 frame with latest pitch angle
         R_v1_v2_(0,0) = ctheta;
         R_v1_v2_(0,2) = -stheta;
         R_v1_v2_(2,0) = stheta;
@@ -295,6 +293,7 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         //                     [0., 1., 0.],
         //                     [stheta, 0., ctheta]])
 
+        // Update rotation from v2 to body frame with latest roll angle
         R_v2_b_(1,1) = cphi;
         R_v2_b_(1,2) = sphi;
         R_v2_b_(2,1) = -sphi;
@@ -304,6 +303,7 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         //                    [0., cphi, sphi],
         //                    [0., -sphi, cphi]])
 
+        // Rotation from v1 to body frame
         R_v1_b_ = R_v2_b_ * R_v1_v2_;
 
         // Compute whole rotation from camera frame to level frame
@@ -323,6 +323,10 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
         level_corner3_.x = f_ * (hom_(0,3)/hom_(2,3));  // u4
         level_corner3_.y = f_ * (hom_(1,3)/hom_(2,3));  // v4
+
+        // Fill out the corner pixels vector {original_corner_pix, level_corner_pix}
+        std::vector<float> corner_pixels = {corner0_.x, corner0_.y, corner1_.x, corner1_.y, corner2_.x, corner2_.y, corner3_.x, corner3_.y
+            , level_corner0_.x, level_corner0_.y, level_corner1_.x, level_corner1_.y, level_corner2_.x, level_corner2_.y, level_corner3_.x, level_corner3_.y};
 
 
         if (detected_markers[idx].id == id_outer_)
@@ -395,7 +399,7 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             levelCorners_[i].x = levelCorners_[i].x + 1288.0/2.0;
             levelCorners_[i].y = levelCorners_[i].y + 964.0/2.0;
         }
-
+        
         cv::circle(frame, levelCorners_[0], 10, cv::Scalar(0,255,255));
         cv::circle(frame, levelCorners_[1], 10, cv::Scalar(0,255,255));
         cv::circle(frame, levelCorners_[2], 10, cv::Scalar(0,255,255));
@@ -473,20 +477,26 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
         return;
     }
 
-    // First time this callback fires, populate the cameraMatrix and distortionCoeffs with data from cinfo
+    // First time this callback fires, populate the cameraMatrix and distortionCoeffs and other fields with cinfo data
     if (first_)
     {
+        // Fill out cameraMatrix_ and distortioncoeff_
         for(int i=0; i<9; ++i)
             cameraMatrix_.at<double>(i%3, i-(i%3)*3) = cinfo->K[i];
 
         for(int i=0; i<5; ++i)
             distortionCoeff_.at<double>(i, 0) = cinfo->D[i];
 
-        // Grab the focal length for use later
+        // Grab the average focal length for use later
         f_ = (cinfo->K[0] + cinfo->K[4]) / 2.0;
 
+        // Grab x and y focal lengths
         fx_ = cinfo->K[0];
         fy_ = cinfo->K[4];
+
+        // Grab image height and width
+        im_height_ = cinfo->height;
+        im_width_ = cinfo->width;
 
         // Done
         first_ = false;
@@ -516,9 +526,6 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     // const int mtype = frame.type();
     // std::cout << std::to_string(mtype) << std::endl;
 
-    int rows = frame.rows;
-    int cols = frame.cols;
-
     // THIS IS A MAJOR HACK.
     // If our pose tracker has been giving us a bunch of NaNs
     // we toss in a blank (black) frame to 'refresh' our view of the marker.
@@ -528,7 +535,7 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     // of NaNs within a certain amount of time.
     if (nanCount_ >= 10)
     {
-        frame = cv::Mat::zeros(rows, cols, CV_8UC3);
+        frame = cv::Mat::zeros(im_height_, im_width_, CV_8UC3);
         nanCount_ = 0;
     }
 
