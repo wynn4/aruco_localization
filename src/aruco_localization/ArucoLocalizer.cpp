@@ -43,6 +43,7 @@ ArucoLocalizer::ArucoLocalizer() :
     //                      [1., 0., 0.],
     //                      [0., 0., 1.]])
 
+    // TODO add the rotations
     // Just set to identity for now (assumes that camera is mounted pointing straight down)
     R_b_m_ = Eigen::Matrix3f::Identity();
 
@@ -56,6 +57,10 @@ ArucoLocalizer::ArucoLocalizer() :
 
     R_c_vlc_.setZero();
 
+    heading_vec_.setZero();
+    R_c_v1_.setZero();
+    R_c_v1_(0,1) = -1.0;
+    R_c_v1_(1,0) = 1.0; 
 
 
     // Initialize the attitude bias to zero
@@ -82,6 +87,7 @@ ArucoLocalizer::ArucoLocalizer() :
     center_pix_outer_pub_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center_outer", 1);
     corner_pix_outer_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners_outer", 1);
     distance_outer_pub_ = nh_private_.advertise<std_msgs::Float32>("distance_outer", 1);
+    heading_outer_pub_ = nh_private_.advertise<std_msgs::Float32>("heading_outer", 1);
 
     center_pix_inner_pub_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center_inner", 1);
     corner_pix_inner_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners_inner", 1);
@@ -205,26 +211,17 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         // top left (NW)
         corner0_.x = detected_markers[idx][0].x;
         corner0_.y = detected_markers[idx][0].y;
-        // float c0_x = detected_markers[idx][0].x;
-        // float c0_y = detected_markers[idx][0].y;
 
         // top right (NE)
         corner1_.x = detected_markers[idx][1].x;
         corner1_.y = detected_markers[idx][1].y;
-        // float c1_x = detected_markers[idx][1].x;
-        // float c1_y = detected_markers[idx][1].y;
-
         // bottom right (SE)
         corner2_.x = detected_markers[idx][2].x;
         corner2_.y = detected_markers[idx][2].y;
-        // float c2_x = detected_markers[idx][2].x;
-        // float c2_y = detected_markers[idx][2].y;
 
         // bottom left (SW)
         corner3_.x = detected_markers[idx][3].x;
         corner3_.y = detected_markers[idx][3].y;
-        // float c3_x = detected_markers[idx][3].x;
-        // float c3_y = detected_markers[idx][3].y;
 
         // add corners to our corners_ vector
         corners_.push_back(corner0_);
@@ -240,10 +237,19 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
         // take the average
         float Ls = (Ls_1_2 + Ls_2_3 + Ls_3_4 + Ls_4_1) / 4.0;
-        // compute the distance
-        // float z_c = (markerSize_ * f_) / Ls;
 
-        // std::cout << "x_coord: " << std::to_string(c2_x) << "\t" << "y_coord: " << std::to_string(c2_y) << std::endl;
+        //
+        // Get the marker's relative heading
+        //
+
+        heading_vec_(0,0) = corner0_.x - corner3_.x;
+        heading_vec_(1,0) = corner0_.y - corner3_.y;
+
+        // rotate into the v1 frame
+        heading_vec_ = R_c_v1_ * heading_vec_;
+
+        // compute relative heading using atan2
+        rel_heading_ = atan2(heading_vec_(1,0), heading_vec_(0,0)) * 180/3.14159;
 
         //
         // Transform Points into the Virtual-Level-Frame
@@ -351,6 +357,11 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             std_msgs::Float32 distanceMsg;
             distanceMsg.data = z_c;
             distance_outer_pub_.publish(distanceMsg);
+
+            // publish heading data
+            std_msgs::Float32 headingMsg;
+            headingMsg.data = rel_heading_;
+            heading_outer_pub_.publish(headingMsg);
         }
 
         if (detected_markers[idx].id == id_inner_)

@@ -62,6 +62,7 @@ namespace aruco_localizer {
         ros::Publisher center_pix_outer_pub_;
         ros::Publisher corner_pix_outer_pub_;
         ros::Publisher distance_outer_pub_;
+        ros::Publisher heading_outer_pub_;
 
         // Inner marker of the nested marker
         ros::Publisher center_pix_inner_pub_;
@@ -99,6 +100,11 @@ namespace aruco_localizer {
         double phi_;
         double theta_;
         double psi_;
+
+        // Marker relative heading
+        float rel_heading_;
+        Eigen::Matrix<float, 2, 1> heading_vec_;
+        Eigen::Matrix2f R_c_v1_;
 
         // Level-Frame mapping stuff
         std::vector<cv::Point2f> corners_;
