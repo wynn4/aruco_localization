@@ -92,6 +92,7 @@ ArucoLocalizer::ArucoLocalizer() :
     center_pix_inner_pub_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center_inner", 1);
     corner_pix_inner_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners_inner", 1);
     distance_inner_pub_ = nh_private_.advertise<std_msgs::Float32>("distance_inner", 1);
+    orientation_inner_pub_ = nh_private_.advertise<geometry_msgs::Quaternion>("orientation_inner", 1);
 
     // Create ROS services
     calib_attitude_ = nh_private_.advertiseService("calibrate_attitude", &ArucoLocalizer::calibrateAttitude, this);
@@ -249,7 +250,7 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         heading_vec_ = R_c_v1_ * heading_vec_;
 
         // compute relative heading using atan2
-        rel_heading_ = atan2(heading_vec_(1,0), heading_vec_(0,0)) * 180/3.14159;
+        rel_heading_ = atan2(heading_vec_(1,0), heading_vec_(0,0));
 
         //
         // Transform Points into the Virtual-Level-Frame
@@ -386,6 +387,52 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             std_msgs::Float32 distanceMsg;
             distanceMsg.data = z_c;
             distance_inner_pub_.publish(distanceMsg);
+
+            //
+            // Get the orientation of just the inner marker in the level frame
+            //
+
+            // Create a marker from the level-frame corners
+            aruco::Marker innerMarkerLF;
+            std::vector<cv::Point2f> corners;
+            corners.push_back(level_corner0_);
+            corners.push_back(level_corner1_);
+            corners.push_back(level_corner2_);
+            corners.push_back(level_corner3_);
+
+            innerMarkerLF = aruco::Marker(corners, id_inner_);
+
+            // Get Rvec & Tvec
+            innerMarkerLF.calculateExtrinsics(markerSize_inner_, camParams_, false);
+
+            // Create the ROS message
+            geometry_msgs::Quaternion quatMsg;
+            tf::Quaternion quat = rodriguesToTFQuat(innerMarkerLF.Rvec);
+            tf::quaternionTFToMsg(quat, quatMsg);
+
+            // Publish.
+            orientation_inner_pub_.publish(quatMsg);
+
+            // double x = quatMsg.x;
+            // double y = quatMsg.y;
+            // double z = quatMsg.z;
+            // double w = quatMsg.w;
+
+            // Eigen::Matrix3f R = get_R_from_quat(x, y, z, w);
+
+            // Eigen::Matrix<float, 3, 1> k_axis;
+            // k_axis(0,0) = 0.0;
+            // k_axis(1,0) = 0.0;
+            // k_axis(2,0) = 1.0;
+
+            // Eigen::Vector3f vec = R * k_axis;
+
+            // double angle = acos(vec.dot(k_axis));
+            // angle = 180.0 - angle * (180.0/3.14159);
+            // std::cout << angle << std::endl;
+
+            corners.clear();
+
         }
 
     }
@@ -528,6 +575,7 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
 
     }
 
+
     // ==========================================================================
     // Process the incoming video frame
 
@@ -579,6 +627,33 @@ void ArucoLocalizer::stateCallback(const nav_msgs::OdometryConstPtr &msg)
     tf::Matrix3x3(tf_quat).getRPY(phi_, theta_, psi_);
     // phi_ = phi_;
     // theta_ = theta_;
+}
+
+// ----------------------------------------------------------------------------
+Eigen::Matrix3f ArucoLocalizer::get_R_from_quat(const double& x, const double& y, const double& z, const double& w)
+{
+    double wx = w*x;
+    double wy = w*y;
+    double wz = w*z;
+    double xx = x*x;
+    double xy = x*y;
+    double xz = x*z;
+    double yy = y*y;
+    double yz = y*z;
+    double zz = z*z;
+
+    Eigen::Matrix3f mmatrix;
+    mmatrix(0,0) = 1.0 - 2.0*yy - 2.0*zz;
+    mmatrix(0,1) = 2.0*xy + 2.0*wz;
+    mmatrix(0,2) = 2.0*xz - 2.0*wy;
+    mmatrix(1,0) = 2.0*xy - 2.0*wz;
+    mmatrix(1,1) = 1.0 - 2.0*xx - 2.0*zz;
+    mmatrix(1,2) = 2.0*yz + 2.0*wx;
+    mmatrix(2,0) = 2.0*xz + 2.0*wy;
+    mmatrix(2,1) = 2.0*yz - 20.*wx;
+    mmatrix(2,2) = 1.0 - 2.0*xx - 2.0*yy;
+
+    return mmatrix;
 }
 
 // ----------------------------------------------------------------------------

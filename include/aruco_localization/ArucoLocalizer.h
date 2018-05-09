@@ -17,6 +17,7 @@
 #include <tf/transform_broadcaster.h>
 
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Quaternion.h>
 #include <nav_msgs/Odometry.h>
 #include <aruco_localization/MarkerMeasurement.h>
 #include <aruco_localization/MarkerMeasurementArray.h>
@@ -68,6 +69,7 @@ namespace aruco_localizer {
         ros::Publisher center_pix_inner_pub_;
         ros::Publisher corner_pix_inner_pub_;
         ros::Publisher distance_inner_pub_;
+        ros::Publisher orientation_inner_pub_;
 
         ros::ServiceServer calib_attitude_;
 
@@ -77,6 +79,9 @@ namespace aruco_localizer {
         aruco::MarkerDetector mDetector_;
         aruco::MarkerMapPoseTracker mmPoseTracker_;
         aruco::CameraParameters camParams_;
+
+        // Pose tracker for center marker
+        aruco::MarkerPoseTracker mPoseTracker_;
 
         bool showOutputVideo_;
         bool debugSaveInputFrames_;
@@ -170,6 +175,9 @@ namespace aruco_localizer {
         tf::Quaternion rodriguesToTFQuat(const cv::Mat& rvec);
         tf::Transform aruco2tf(const cv::Mat& rvec, const cv::Mat& tvec);
         void sendtf(const cv::Mat& rvec, const cv::Mat& tvec);
+
+        // function to convert a quaternion to a rotation matrix
+        Eigen::Matrix3f get_R_from_quat(const double& x, const double& y, const double& z, const double& w);
 
         // Save the current frame to file. Useful for debugging
         void saveInputFrame(const cv::Mat& frame);
