@@ -402,16 +402,18 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
             innerMarkerLF = aruco::Marker(corners, id_inner_);
 
-            // Get Rvec & Tvec
-            innerMarkerLF.calculateExtrinsics(markerSize_inner_, camParams_, false);
+            // Calculate Rvec & Tvec with the pose tracker
+            // innerMarkerLF.calculateExtrinsics(markerSize_inner_, camParams_, false);
+            if (mPoseTracker_.estimatePose(innerMarkerLF, camParams_, markerSize_inner_))
+            {
+                // Create the ROS message
+                geometry_msgs::Quaternion quatMsg;
+                tf::Quaternion quat = rodriguesToTFQuat(mPoseTracker_.getRvec());
+                tf::quaternionTFToMsg(quat, quatMsg);
 
-            // Create the ROS message
-            geometry_msgs::Quaternion quatMsg;
-            tf::Quaternion quat = rodriguesToTFQuat(innerMarkerLF.Rvec);
-            tf::quaternionTFToMsg(quat, quatMsg);
-
-            // Publish.
-            orientation_inner_pub_.publish(quatMsg);
+                // Publish.
+                orientation_inner_pub_.publish(quatMsg);
+            }
 
             // double x = quatMsg.x;
             // double y = quatMsg.y;
@@ -512,8 +514,8 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
     if (mmPoseTracker_.isValid()) {
         if (mmPoseTracker_.estimatePose(detected_markers)) {
 
-            if (drawDetections)
-                aruco::CvDrawingUtils::draw3dAxis(frame, camParams_, mmPoseTracker_.getRvec(), mmPoseTracker_.getTvec(), mmConfig_[0].getMarkerSize()*2);
+            // if (drawDetections)
+                // aruco::CvDrawingUtils::draw3dAxis(frame, camParams_, mmPoseTracker_.getRvec(), mmPoseTracker_.getTvec(), mmConfig_[0].getMarkerSize()*2);
 
             sendtf(mmPoseTracker_.getRvec(), mmPoseTracker_.getTvec());
         }
