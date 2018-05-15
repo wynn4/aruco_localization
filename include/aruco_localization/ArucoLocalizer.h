@@ -116,8 +116,8 @@ namespace aruco_localizer {
         std::vector<cv::Point2f> cornersUndist_;
         std::vector<cv::Point2f> levelCorners_;
 
-        Eigen::Matrix<float, 3, 4> uvf_;
-        Eigen::Matrix<float, 3, 4> hom_;
+        Eigen::Matrix<float, 4, 4> uvf_;
+        Eigen::Matrix<float, 4, 4> hom_;
 
         Eigen::Matrix3f R_vlc_v1_;
         Eigen::Matrix3f R_v1_v2_;
@@ -126,6 +126,17 @@ namespace aruco_localizer {
         Eigen::Matrix3f R_b_m_;
         Eigen::Matrix3f R_m_c_;
         Eigen::Matrix3f R_c_vlc_;
+
+        // Homogeneous Transform Matrices
+        Eigen::Matrix4f T_vlc_v1_;
+        Eigen::Matrix4f T_v1_b_;
+        Eigen::Matrix4f T_b_m_;
+        Eigen::Matrix4f T_m_c_;
+        Eigen::Matrix4f T_vlc_c_;
+        Eigen::Matrix4f T_c_vlc_;
+
+        // Camera mount offset from C.G.
+        Eigen::Matrix<float, 3, 1> camera_offset_;
 
         cv::Point2f corner0_;
         cv::Point2f corner1_;

@@ -18,6 +18,9 @@ ArucoLocalizer::ArucoLocalizer() :
     nh_private_.param<bool>("debug_save_input_frames", debugSaveInputFrames_, false);
     nh_private_.param<bool>("debug_save_output_frames", debugSaveOutputFrames_, false);
     nh_private_.param<std::string>("debug_image_path", debugImagePath_, "/tmp/arucoimages");
+    double camera_offset_x = nh_private_.param<double>("camera_offset_x", 0.0);
+    double camera_offset_y = nh_private_.param<double>("camera_offset_y", 0.0);
+    double camera_offset_z = nh_private_.param<double>("camera_offset_z", 0.0);
 
     // Initialize arrays
     corners_.reserve(4);
@@ -60,7 +63,33 @@ ArucoLocalizer::ArucoLocalizer() :
     heading_vec_.setZero();
     R_c_v1_.setZero();
     R_c_v1_(0,1) = -1.0;
-    R_c_v1_(1,0) = 1.0; 
+    R_c_v1_(1,0) = 1.0;
+
+    T_vlc_v1_ = Eigen::Matrix4f::Identity();
+    T_v1_b_ = Eigen::Matrix4f::Identity();
+    T_b_m_ = Eigen::Matrix4f::Identity();
+    T_m_c_ = Eigen::Matrix4f::Identity();
+    T_vlc_c_ = Eigen::Matrix4f::Identity();
+    T_c_vlc_ = Eigen::Matrix4f::Identity();
+
+    camera_offset_.setZero();
+    camera_offset_(0,0) = camera_offset_x;
+    camera_offset_(1,0) = camera_offset_y;
+    camera_offset_(2,0) = camera_offset_z;
+
+    // Add in the camera offset to the T_b_m_ transformation
+    T_b_m_.block<3,1>(0,3) = camera_offset_;
+
+    // Add in the rotations to the remaining transformations
+    T_vlc_v1_.block<3,3>(0,0) = R_vlc_v1_;
+    T_b_m_.block<3,3>(0,0) = R_b_m_;
+    T_m_c_.block<3,3>(0,0) = R_m_c_;
+
+    // uvf_ is augmented with a row of ones
+    uvf_(3,0) = 1.0;
+    uvf_(3,1) = 1.0;
+    uvf_(3,2) = 1.0;
+    uvf_(3,3) = 1.0;
 
 
     // Initialize the attitude bias to zero
@@ -313,11 +342,21 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         // Rotation from v1 to body frame
         R_v1_b_ = R_v2_b_ * R_v1_v2_;
 
+        // Update transformation from vehicle-1 to body frame
+        T_v1_b_.block<3,3>(0,0) = R_v1_b_;
+
         // Compute whole rotation from camera frame to level frame
-        R_c_vlc_ = (R_m_c_ * R_b_m_ * R_v1_b_ * R_vlc_v1_).transpose();  // R_c_vlc = R_vlc_c.transpose()
+        // R_c_vlc_ = (R_m_c_ * R_b_m_ * R_v1_b_ * R_vlc_v1_).transpose();  // R_c_vlc = R_vlc_c.transpose()
+        // Compose the whole transformation from the vlf to the camera frame
+        T_vlc_c_ = T_m_c_ * T_b_m_ * T_v1_b_ * T_vlc_v1_;
+        // Compute the inverse transformation T_c_vlc_ (with the Homogeneous transform Tinv != T.transpose)
+        T_c_vlc_.block<3,3>(0,0) = T_vlc_c_.block<3,3>(0,0).transpose();
+        T_c_vlc_.block<3,1>(0,3) = -T_vlc_c_.block<3,3>(0,0).transpose() * T_vlc_c_.block<3,1>(0,3);
+        // T_c_vlc_ = T_vlc_c_.inverse();
 
         // Use the Homography to get the corner locations in the level frame
-        hom_ = R_c_vlc_ * uvf_;  // 3x4
+        // hom_ = R_c_vlc_ * uvf_;  // 3x4
+        hom_ = T_c_vlc_ * uvf_;  // 4x4
 
         level_corner0_.x = f_ * (hom_(0,0)/hom_(2,0));  // u1
         level_corner0_.y = f_ * (hom_(1,0)/hom_(2,0));  // v1
@@ -394,11 +433,19 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
             // Create a marker from the level-frame corners
             aruco::Marker innerMarkerLF;
+
             std::vector<cv::Point2f> corners;
             corners.push_back(level_corner0_);
             corners.push_back(level_corner1_);
             corners.push_back(level_corner2_);
             corners.push_back(level_corner3_);
+
+            // Make corner locations w.r.t. top left corner of the image frame
+            for (int i=0; i<4; i++)
+            {
+                corners[i].x = corners[i].x + im_width_/2.0;
+                corners[i].y = corners[i].y + im_height_/2.0;
+            }
 
             innerMarkerLF = aruco::Marker(corners, id_inner_);
 
