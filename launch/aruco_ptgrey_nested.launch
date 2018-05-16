@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
   <!-- args to be passed in -->
-  <arg name="frame_rate" value="30" />
+  <arg name="frame_rate" default="30" />
   <arg name="show" default="true" />
   <arg name="calibrated" default="true" />
 
