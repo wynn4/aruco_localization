@@ -527,10 +527,10 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
         // Legend on bottom of frame
         cv::rectangle(frame, cv::Point(0, im_height_ - 20), cv::Point(im_width_, im_height_), cv::Scalar(0, 0,0), CV_FILLED);
-        cv::putText(frame, "Legend: ", cv::Point(2, im_height_ - 5), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255, 255,255));
-        cv::putText(frame, "Detected Marker", cv::Point(80, im_height_ - 5), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0,255));
-        cv::putText(frame, "Desired Corner Locations", cv::Point(235, im_height_ - 5), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,0));
-        cv::putText(frame, "Level-Frame Corner Locations", cv::Point(470, im_height_ - 5), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,255));
+        cv::putText(frame, "Legend: ", cv::Point(2, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255, 255,255));
+        cv::putText(frame, "Detected Marker", cv::Point(80, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0,255));
+        cv::putText(frame, "Desired Corner Locations", cv::Point(235, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,0));
+        cv::putText(frame, "Level-Frame Corner Locations", cv::Point(470, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,255));
     }
 
     //
