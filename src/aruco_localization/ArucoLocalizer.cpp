@@ -22,6 +22,9 @@ ArucoLocalizer::ArucoLocalizer() :
     double camera_offset_y = nh_private_.param<double>("camera_offset_y", 0.0);
     double camera_offset_z = nh_private_.param<double>("camera_offset_z", 0.0);
 
+    nh_private_.param<bool>("shrink_image", resize_, false);
+    nh_private_.param<bool>("draw_data", drawData_, false);
+
     // Initialize arrays
     corners_.reserve(4);
     cornersUndist_.reserve(4);
@@ -491,10 +494,10 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         for (auto idx : mmConfig_.getIndices(detected_markers))
             detected_markers[idx].draw(frame, cv::Scalar(0, 0, 255), 1);
 
-        cv::circle(frame, cv::Point(-100 + 1288/2, -100 + 964/2), 10, cv::Scalar(0,255,0));
-        cv::circle(frame, cv::Point(100 + 1288/2, -100 + 964/2), 10, cv::Scalar(0,255,0));
-        cv::circle(frame, cv::Point(100 + 1288/2, 100 + 964/2), 10, cv::Scalar(0,255,0));
-        cv::circle(frame, cv::Point(-100 + 1288/2, 100 + 964/2), 10, cv::Scalar(0,255,0));
+        cv::circle(frame, cv::Point(-100 + 962/2, -100 + 720/2), 10, cv::Scalar(0,255,0));
+        cv::circle(frame, cv::Point(100 + 962/2, -100 + 720/2), 10, cv::Scalar(0,255,0));
+        cv::circle(frame, cv::Point(100 + 962/2, 100 + 720/2), 10, cv::Scalar(0,255,0));
+        cv::circle(frame, cv::Point(-100 + 962/2, 100 + 720/2), 10, cv::Scalar(0,255,0));
 
         levelCorners_.push_back(level_corner0_);
         levelCorners_.push_back(level_corner1_);
@@ -503,8 +506,8 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
         for (int i=0; i<4; i++)
         {
-            levelCorners_[i].x = levelCorners_[i].x + 1288.0/2.0;
-            levelCorners_[i].y = levelCorners_[i].y + 964.0/2.0;
+            levelCorners_[i].x = levelCorners_[i].x + 962.0/2.0;
+            levelCorners_[i].y = levelCorners_[i].y + 720.0/2.0;
         }
         
         cv::circle(frame, levelCorners_[0], 10, cv::Scalar(0,255,255));
@@ -631,8 +634,12 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     // Get image as a regular Mat
     // cv::Mat frame = cv_ptr->image;
 
-    // Resize
-    cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(962, 720), CV_INTER_LINEAR);
+    // Resize to improve ArUco processing time
+    if (resize_)
+    {
+        cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(962, 720), CV_INTER_LINEAR);
+    }
+    
 
     // const int mtype = frame.type();
     // std::cout << std::to_string(mtype) << std::endl;
@@ -654,7 +661,7 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     if (debugSaveInputFrames_) saveInputFrame(cv_ptr->image);
 
     // Process the image and do ArUco localization on it
-    processImage(cv_ptr->image, showOutputVideo_);
+    processImage(cv_ptr->image, drawData_);
 
     if (debugSaveOutputFrames_) saveOutputFrame(cv_ptr->image);
 

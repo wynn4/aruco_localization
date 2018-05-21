@@ -162,6 +162,8 @@ namespace aruco_localizer {
 
         // Misc
         bool first_;
+        bool resize_;
+        bool drawData_;
 
         //
         // Methods
