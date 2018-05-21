@@ -629,10 +629,10 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     // Process the incoming video frame
 
     // Get image as a regular Mat
-    cv::Mat frame = cv_ptr->image;
+    // cv::Mat frame = cv_ptr->image;
 
     // Resize
-    cv::resize(frame, frame, cv::Size(962, 720), CV_INTER_LINEAR);
+    cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(962, 720), CV_INTER_LINEAR);
 
     // const int mtype = frame.type();
     // std::cout << std::to_string(mtype) << std::endl;
@@ -646,28 +646,28 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     // of NaNs within a certain amount of time.
     if (nanCount_ >= 10)
     {
-        frame = cv::Mat::zeros(im_height_, im_width_, CV_8UC3);
+        cv_ptr->image = cv::Mat::zeros(im_height_, im_width_, CV_8UC3);
         nanCount_ = 0;
     }
 
 
-    if (debugSaveInputFrames_) saveInputFrame(frame);
+    if (debugSaveInputFrames_) saveInputFrame(cv_ptr->image);
 
     // Process the image and do ArUco localization on it
-    processImage(frame, showOutputVideo_);
+    processImage(cv_ptr->image, showOutputVideo_);
 
-    if (debugSaveOutputFrames_) saveOutputFrame(frame);
+    if (debugSaveOutputFrames_) saveOutputFrame(cv_ptr->image);
 
     if (showOutputVideo_) {
         // Update GUI Window
-        cv::imshow("detections", frame);
+        cv::imshow("detections", cv_ptr->image);
         cv::waitKey(1);
     }
 
     // ==========================================================================
 
     // Output modified video stream
-    // image_pub_.publish(cv_ptr->toImageMsg());
+    image_pub_.publish(cv_ptr->toImageMsg());
 }
 
 void ArucoLocalizer::stateCallback(const nav_msgs::OdometryConstPtr &msg)
