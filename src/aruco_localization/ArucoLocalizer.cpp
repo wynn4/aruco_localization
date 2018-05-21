@@ -631,6 +631,9 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     // Get image as a regular Mat
     cv::Mat frame = cv_ptr->image;
 
+    // Resize
+    cv::resize(frame, frame, cv::Size(962, 720), CV_INTER_LINEAR);
+
     // const int mtype = frame.type();
     // std::cout << std::to_string(mtype) << std::endl;
 
@@ -664,7 +667,7 @@ void ArucoLocalizer::cameraCallback(const sensor_msgs::ImageConstPtr& image, con
     // ==========================================================================
 
     // Output modified video stream
-    image_pub_.publish(cv_ptr->toImageMsg());
+    // image_pub_.publish(cv_ptr->toImageMsg());
 }
 
 void ArucoLocalizer::stateCallback(const nav_msgs::OdometryConstPtr &msg)
