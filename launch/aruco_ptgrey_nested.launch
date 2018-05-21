@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
   <!-- args to be passed in -->
-  <arg name="frame_rate" default="30" />
   <arg name="show" default="true" />
+  <arg name="draw" default="true" />
+
+  <arg name="frame_rate" default="30" />
   <arg name="calibrated" default="true" />
 
   <node name="pointgrey_camera" pkg="pointgrey_camera_driver" type="camera_node">
@@ -25,7 +27,7 @@
     <param name="marker_size_inner" value="0.127" />
 
     <param name="shrink_image" value="true" />
-    <param name="draw_data" value="true" />
+    <param name="draw_data" value="$(arg draw)" />
 
     <param name="id_outer" value="148" />
     <param name="id_inner" value="65" />
