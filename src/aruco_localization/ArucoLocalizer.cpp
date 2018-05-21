@@ -105,8 +105,15 @@ ArucoLocalizer::ArucoLocalizer() :
 
     first_ = true;
 
+    ibvs_status_ = " ";
+
     // Subscribe to state
     state_sub_ = nh_.subscribe("/quadcopter/ground_truth/odometry/NED", 1, &ArucoLocalizer::stateCallback, this);
+
+    // Subscribe to desired corner locations
+    p_des_outer_sub_ = nh_.subscribe("/ibvs/pdes_outer", 1, &ArucoLocalizer::pdesOuterCallback, this);
+    p_des_inner_sub_ = nh_.subscribe("/ibvs/pdes_inner", 1, &ArucoLocalizer::pdesInnerCallback, this);
+    ibvs_status_sub_ = nh_.subscribe("/status_flag", 1, &ArucoLocalizer::ibvsStatusCallback, this);
 
     // Subscribe to input video feed and publish output video feed
     it_ = image_transport::ImageTransport(nh_);
@@ -405,6 +412,11 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             std_msgs::Float32 headingMsg;
             headingMsg.data = rel_heading_;
             heading_outer_pub_.publish(headingMsg);
+
+            // draw
+            if (drawDetections)
+                drawLevelCorners(frame, corner_pixels);
+
         }
 
         if (detected_markers[idx].id == id_inner_)
@@ -429,6 +441,10 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             std_msgs::Float32 distanceMsg;
             distanceMsg.data = z_c;
             distance_inner_pub_.publish(distanceMsg);
+
+            // draw
+            if (drawDetections)
+                drawLevelCorners(frame, corner_pixels);
 
             //
             // Get the orientation of just the inner marker in the level frame
@@ -494,28 +510,27 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         for (auto idx : mmConfig_.getIndices(detected_markers))
             detected_markers[idx].draw(frame, cv::Scalar(0, 0, 255), 1);
 
-        cv::circle(frame, cv::Point(-100 + 962/2, -100 + 720/2), 10, cv::Scalar(0,255,0));
-        cv::circle(frame, cv::Point(100 + 962/2, -100 + 720/2), 10, cv::Scalar(0,255,0));
-        cv::circle(frame, cv::Point(100 + 962/2, 100 + 720/2), 10, cv::Scalar(0,255,0));
-        cv::circle(frame, cv::Point(-100 + 962/2, 100 + 720/2), 10, cv::Scalar(0,255,0));
+        // Draw IBVS data on the frame
+        cv::circle(frame, p_des_outer_0_, 10, cv::Scalar(0,255,0), 2);
+        cv::circle(frame, p_des_outer_1_, 10, cv::Scalar(0,255,0), 2);
+        cv::circle(frame, p_des_outer_2_, 10, cv::Scalar(0,255,0), 2);
+        cv::circle(frame, p_des_outer_3_, 10, cv::Scalar(0,255,0), 2);
 
-        levelCorners_.push_back(level_corner0_);
-        levelCorners_.push_back(level_corner1_);
-        levelCorners_.push_back(level_corner2_);
-        levelCorners_.push_back(level_corner3_);
+        cv::circle(frame, p_des_inner_0_, 10, cv::Scalar(0,255,0), 2);
+        cv::circle(frame, p_des_inner_1_, 10, cv::Scalar(0,255,0), 2);
+        cv::circle(frame, p_des_inner_2_, 10, cv::Scalar(0,255,0), 2);
+        cv::circle(frame, p_des_inner_3_, 10, cv::Scalar(0,255,0), 2);
 
-        for (int i=0; i<4; i++)
-        {
-            levelCorners_[i].x = levelCorners_[i].x + 962.0/2.0;
-            levelCorners_[i].y = levelCorners_[i].y + 720.0/2.0;
-        }
-        
-        cv::circle(frame, levelCorners_[0], 10, cv::Scalar(0,255,255));
-        cv::circle(frame, levelCorners_[1], 10, cv::Scalar(0,255,255));
-        cv::circle(frame, levelCorners_[2], 10, cv::Scalar(0,255,255));
-        cv::circle(frame, levelCorners_[3], 10, cv::Scalar(0,255,255));
+        // Draw IBVS state machine status
+        cv::rectangle(frame, cv::Point(0,0), cv::Point(370,20), cv::Scalar(0, 0,0), CV_FILLED);
+        cv::putText(frame, "State Machine Status: " + ibvs_status_, cv::Point(2, 15), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255, 255,255));
 
-        levelCorners_.clear();
+        // Legend on bottom of frame
+        cv::rectangle(frame, cv::Point(0, im_height_ - 20), cv::Point(im_width_, im_height_), cv::Scalar(0, 0,0), CV_FILLED);
+        cv::putText(frame, "Legend: ", cv::Point(2, im_height_ - 5), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255, 255,255));
+        cv::putText(frame, "Detected Marker", cv::Point(80, im_height_ - 5), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0,255));
+        cv::putText(frame, "Desired Corner Locations", cv::Point(235, im_height_ - 5), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,0));
+        cv::putText(frame, "Level-Frame Corner Locations", cv::Point(470, im_height_ - 5), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,255));
     }
 
     //
@@ -571,6 +586,14 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         }
     }
 
+}
+
+void ArucoLocalizer::drawLevelCorners(cv::Mat& frame, std::vector<float>& corners)
+{
+    cv::circle(frame, cv::Point(corners[8] + im_width_/2.0, corners[9] + im_height_/2.0), 10, cv::Scalar(0,255,255), 2);
+    cv::circle(frame, cv::Point(corners[10] + im_width_/2.0, corners[11] + im_height_/2.0), 10, cv::Scalar(0,255,255), 2);
+    cv::circle(frame, cv::Point(corners[12] + im_width_/2.0, corners[13] + im_height_/2.0), 10, cv::Scalar(0,255,255), 2);
+    cv::circle(frame, cv::Point(corners[14] + im_width_/2.0, corners[15] + im_height_/2.0), 10, cv::Scalar(0,255,255), 2);
 }
 
 // ----------------------------------------------------------------------------
@@ -686,6 +709,42 @@ void ArucoLocalizer::stateCallback(const nav_msgs::OdometryConstPtr &msg)
     tf::Matrix3x3(tf_quat).getRPY(phi_, theta_, psi_);
     // phi_ = phi_;
     // theta_ = theta_;
+}
+
+
+void ArucoLocalizer::pdesOuterCallback(const aruco_localization::FloatList& msg)
+{
+    p_des_outer_0_.x = msg.data[0] + im_width_/2.0;
+    p_des_outer_0_.y = msg.data[1] + im_height_/2.0;
+
+    p_des_outer_1_.x = msg.data[2] + im_width_/2.0;
+    p_des_outer_1_.y = msg.data[3] + im_height_/2.0;
+
+    p_des_outer_2_.x = msg.data[4] + im_width_/2.0;
+    p_des_outer_2_.y = msg.data[5] + im_height_/2.0;
+
+    p_des_outer_3_.x = msg.data[6] + im_width_/2.0;
+    p_des_outer_3_.y = msg.data[7] + im_height_/2.0;
+}
+
+void ArucoLocalizer::pdesInnerCallback(const aruco_localization::FloatList& msg)
+{
+    p_des_inner_0_.x = msg.data[0] + im_width_/2.0;
+    p_des_inner_0_.y = msg.data[1] + im_height_/2.0;
+
+    p_des_inner_1_.x = msg.data[2] + im_width_/2.0;
+    p_des_inner_1_.y = msg.data[3] + im_height_/2.0;
+
+    p_des_inner_2_.x = msg.data[4] + im_width_/2.0;
+    p_des_inner_2_.y = msg.data[5] + im_height_/2.0;
+
+    p_des_inner_3_.x = msg.data[6] + im_width_/2.0;
+    p_des_inner_3_.y = msg.data[7] + im_height_/2.0;
+}
+
+void ArucoLocalizer::ibvsStatusCallback(const std_msgs::String& msg)
+{
+    ibvs_status_ = msg.data;
 }
 
 // ----------------------------------------------------------------------------

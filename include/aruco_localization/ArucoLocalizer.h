@@ -25,6 +25,7 @@
 #include <std_srvs/Trigger.h>
 
 #include <std_msgs/Float32.h>
+#include <std_msgs/String.h>
 
 #include <experimental/filesystem>
 
@@ -42,6 +43,13 @@ namespace aruco_localizer {
 
         // state subscriber
         ros::Subscriber state_sub_;
+
+        // p_des subscriber
+        ros::Subscriber p_des_outer_sub_;
+        ros::Subscriber p_des_inner_sub_;
+
+        // ibvs status subscriber
+        ros::Subscriber ibvs_status_sub_;
 
         // image transport pub/sub
         image_transport::ImageTransport it_;
@@ -165,6 +173,19 @@ namespace aruco_localizer {
         bool resize_;
         bool drawData_;
 
+        // Stuff for drawing
+        cv::Point p_des_outer_0_;
+        cv::Point p_des_outer_1_;
+        cv::Point p_des_outer_2_;
+        cv::Point p_des_outer_3_;
+
+        cv::Point p_des_inner_0_;
+        cv::Point p_des_inner_1_;
+        cv::Point p_des_inner_2_;
+        cv::Point p_des_inner_3_;
+
+        std::string ibvs_status_;
+
         //
         // Methods
         //
@@ -175,11 +196,21 @@ namespace aruco_localizer {
         // quadcopter state subscriber
         void stateCallback(const nav_msgs::OdometryConstPtr& msg);
 
+        // IBVS p_des subscribers
+        void pdesOuterCallback(const aruco_localization::FloatList& msg);
+        void pdesInnerCallback(const aruco_localization::FloatList& msg);
+
+        // IBVS status callback
+        void ibvsStatusCallback(const std_msgs::String& msg);
+
         // service handlers
         bool calibrateAttitude(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
 
         // This is where the real ArUco processing is done
         void processImage(cv::Mat& frame, bool drawDetections);
+
+        // Draw Level Corners
+        void drawLevelCorners(cv::Mat& frame, std::vector<float>& corners);
 
         // Convert ROS CameraInfo message to ArUco style CameraParameters
         aruco::CameraParameters ros2arucoCamParams(const sensor_msgs::CameraInfoConstPtr& cinfo);
