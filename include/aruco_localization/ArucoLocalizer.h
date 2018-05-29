@@ -186,6 +186,14 @@ namespace aruco_localizer {
 
         std::string ibvs_status_;
 
+        // Colors
+        cv::Scalar mRed_ = cv::Scalar(0, 0, 255);
+        cv::Scalar mGreen_ = cv::Scalar(0, 255, 0);
+        cv::Scalar mBlue_ = cv::Scalar(255, 0, 0);
+        cv::Scalar mYellow_ = cv::Scalar(0,255,255);
+        cv::Scalar mWhite_ = cv::Scalar(255,255,255);
+        cv::Scalar mBlack_ = cv::Scalar(0,0,0);
+
         //
         // Methods
         //

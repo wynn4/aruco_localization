@@ -508,29 +508,29 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
     if (drawDetections) {
         // print the markers detected that belongs to the markerset
         for (auto idx : mmConfig_.getIndices(detected_markers))
-            detected_markers[idx].draw(frame, cv::Scalar(0, 0, 255), 1);
+            detected_markers[idx].draw(frame, mRed_, 1);
 
         // Draw IBVS data on the frame
-        cv::circle(frame, p_des_outer_0_, 10, cv::Scalar(0,255,0), 2);
-        cv::circle(frame, p_des_outer_1_, 10, cv::Scalar(0,255,0), 2);
-        cv::circle(frame, p_des_outer_2_, 10, cv::Scalar(0,255,0), 2);
-        cv::circle(frame, p_des_outer_3_, 10, cv::Scalar(0,255,0), 2);
+        cv::circle(frame, p_des_outer_0_, 10, mGreen_, 2);
+        cv::circle(frame, p_des_outer_1_, 10, mGreen_, 2);
+        cv::circle(frame, p_des_outer_2_, 10, mGreen_, 2);
+        cv::circle(frame, p_des_outer_3_, 10, mGreen_, 2);
 
-        cv::circle(frame, p_des_inner_0_, 10, cv::Scalar(0,255,0), 2);
-        cv::circle(frame, p_des_inner_1_, 10, cv::Scalar(0,255,0), 2);
-        cv::circle(frame, p_des_inner_2_, 10, cv::Scalar(0,255,0), 2);
-        cv::circle(frame, p_des_inner_3_, 10, cv::Scalar(0,255,0), 2);
+        cv::circle(frame, p_des_inner_0_, 10, mGreen_, 2);
+        cv::circle(frame, p_des_inner_1_, 10, mGreen_, 2);
+        cv::circle(frame, p_des_inner_2_, 10, mGreen_, 2);
+        cv::circle(frame, p_des_inner_3_, 10, mGreen_, 2);
 
         // Draw IBVS state machine status
-        cv::rectangle(frame, cv::Point(0,0), cv::Point(370,20), cv::Scalar(0, 0,0), CV_FILLED);
-        cv::putText(frame, "State Machine Status: " + ibvs_status_, cv::Point(2, 15), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255, 255,255));
+        cv::rectangle(frame, cv::Point(0,0), cv::Point(370,20), mBlack_, CV_FILLED);
+        cv::putText(frame, "State Machine Status: " + ibvs_status_, cv::Point(2, 15), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
 
         // Legend on bottom of frame
-        cv::rectangle(frame, cv::Point(0, im_height_ - 20), cv::Point(im_width_, im_height_), cv::Scalar(0, 0,0), CV_FILLED);
-        cv::putText(frame, "Legend: ", cv::Point(2, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255, 255,255));
-        cv::putText(frame, "Detected Marker", cv::Point(80, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 0,255));
-        cv::putText(frame, "Desired Corner Locations", cv::Point(235, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,0));
-        cv::putText(frame, "Level-Frame Corner Locations", cv::Point(470, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,255));
+        cv::rectangle(frame, cv::Point(0, im_height_ - 20), cv::Point(im_width_, im_height_), mBlack_, CV_FILLED);
+        cv::putText(frame, "Legend: ", cv::Point(2, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+        cv::putText(frame, "Detected Marker", cv::Point(80, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, mRed_);
+        cv::putText(frame, "Desired Corner Locations", cv::Point(235, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, mGreen_);
+        cv::putText(frame, "Level-Frame Corner Locations", cv::Point(470, im_height_ - 7), CV_FONT_HERSHEY_PLAIN, 1.0, mYellow_);
     }
 
     //
@@ -590,10 +590,10 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
 void ArucoLocalizer::drawLevelCorners(cv::Mat& frame, std::vector<float>& corners)
 {
-    cv::circle(frame, cv::Point(corners[8] + im_width_/2.0, corners[9] + im_height_/2.0), 10, cv::Scalar(0,255,255), 2);
-    cv::circle(frame, cv::Point(corners[10] + im_width_/2.0, corners[11] + im_height_/2.0), 10, cv::Scalar(0,255,255), 2);
-    cv::circle(frame, cv::Point(corners[12] + im_width_/2.0, corners[13] + im_height_/2.0), 10, cv::Scalar(0,255,255), 2);
-    cv::circle(frame, cv::Point(corners[14] + im_width_/2.0, corners[15] + im_height_/2.0), 10, cv::Scalar(0,255,255), 2);
+    cv::circle(frame, cv::Point(corners[8] + im_width_/2.0, corners[9] + im_height_/2.0), 10, mYellow_, 2);
+    cv::circle(frame, cv::Point(corners[10] + im_width_/2.0, corners[11] + im_height_/2.0), 10, mYellow_, 2);
+    cv::circle(frame, cv::Point(corners[12] + im_width_/2.0, corners[13] + im_height_/2.0), 10, mYellow_, 2);
+    cv::circle(frame, cv::Point(corners[14] + im_width_/2.0, corners[15] + im_height_/2.0), 10, mYellow_, 2);
 }
 
 // ----------------------------------------------------------------------------
