@@ -105,7 +105,7 @@ ArucoLocalizer::ArucoLocalizer() :
 
     first_ = true;
 
-    ibvs_status_ = " ";
+    status_ = " ";
 
     // Subscribe to state
     state_sub_ = nh_.subscribe("/quadcopter/ground_truth/odometry/NED", 1, &ArucoLocalizer::stateCallback, this);
@@ -113,7 +113,11 @@ ArucoLocalizer::ArucoLocalizer() :
     // Subscribe to desired corner locations
     p_des_outer_sub_ = nh_.subscribe("/ibvs/pdes_outer", 1, &ArucoLocalizer::pdesOuterCallback, this);
     p_des_inner_sub_ = nh_.subscribe("/ibvs/pdes_inner", 1, &ArucoLocalizer::pdesInnerCallback, this);
-    ibvs_status_sub_ = nh_.subscribe("/status_flag", 1, &ArucoLocalizer::ibvsStatusCallback, this);
+    status_sub_ = nh_.subscribe("/status_flag", 1, &ArucoLocalizer::statusCallback, this);
+    current_target_sub_ = nh_.subscribe("/ibvs_status_flag", 1, &ArucoLocalizer::currentTargetCallback, this);
+
+    ibvs_vel_sub_roscopter_ = nh_.subscribe("/quadcopter/high_level_command", 1, &ArucoLocalizer::roscopterVelCallback, this);
+    ibvs_vel_sub_mavros_ = nh_.subscribe("/mavros/setpoint_raw/local", 1, &ArucoLocalizer::mavrosVelCallback, this);
 
     // Subscribe to input video feed and publish output video feed
     it_ = image_transport::ImageTransport(nh_);
@@ -511,19 +515,47 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             detected_markers[idx].draw(frame, mRed_, 1);
 
         // Draw IBVS data on the frame
-        cv::circle(frame, p_des_outer_0_, 10, mGreen_, 2);
-        cv::circle(frame, p_des_outer_1_, 10, mGreen_, 2);
-        cv::circle(frame, p_des_outer_2_, 10, mGreen_, 2);
-        cv::circle(frame, p_des_outer_3_, 10, mGreen_, 2);
-
-        cv::circle(frame, p_des_inner_0_, 10, mGreen_, 2);
-        cv::circle(frame, p_des_inner_1_, 10, mGreen_, 2);
-        cv::circle(frame, p_des_inner_2_, 10, mGreen_, 2);
-        cv::circle(frame, p_des_inner_3_, 10, mGreen_, 2);
-
+        if (currentTarget_ == "aruco_outer")
+        {
+            // Draw p_des_outer
+            cv::circle(frame, p_des_outer_0_, 10, mGreen_, 2);
+            cv::circle(frame, p_des_outer_1_, 10, mGreen_, 2);
+            cv::circle(frame, p_des_outer_2_, 10, mGreen_, 2);
+            cv::circle(frame, p_des_outer_3_, 10, mGreen_, 2);
+        }
+        else
+        {
+            // Draw p_des_inner
+            cv::circle(frame, p_des_inner_0_, 10, mGreen_, 2);
+            cv::circle(frame, p_des_inner_1_, 10, mGreen_, 2);
+            cv::circle(frame, p_des_inner_2_, 10, mGreen_, 2);
+            cv::circle(frame, p_des_inner_3_, 10, mGreen_, 2);
+        }
+        
         // Draw IBVS state machine status
-        cv::rectangle(frame, cv::Point(0,0), cv::Point(370,20), mBlack_, CV_FILLED);
-        cv::putText(frame, "State Machine Status: " + ibvs_status_, cv::Point(2, 15), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+        cv::rectangle(frame, cv::Point(0,0), cv::Point(370,40), mBlack_, CV_FILLED);
+        cv::putText(frame, "State Machine Status: " + status_, cv::Point(2, 15), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+        cv::putText(frame, "Current Target: " + currentTarget_, cv::Point(2, 35), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+
+        // Print Velocities
+        cv::rectangle(frame, cv::Point(0,40), cv::Point(125,100), mBlack_, CV_FILLED);
+        cv::putText(frame, "vx: " + std::to_string(vx_), cv::Point(2, 55), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+        cv::putText(frame, "vy: " + std::to_string(vy_), cv::Point(2, 75), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+        cv::putText(frame, "vz: " + std::to_string(vz_), cv::Point(2, 95), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+
+        // // Draw velocity line
+        // vel_angle_ = atan2(vy_, vx_);
+        // float line_end_x = 50.0 * cos(vel_angle_);
+        // float line_end_y = 50.0 * sin(vel_angle_);
+        // cv::Point start;
+        // start.x = 60.0;
+        // start.y = 160.0;
+
+        // cv::Point end;
+        // end.x = start.x + line_end_y;
+        // end.y = start.y - line_end_x;
+        // cv::line(frame, start, end, mGreen_);
+        // cv::circle(frame, cv::Point(start.x, start.y), 3, mRed_, 2);
 
         // Legend on bottom of frame
         cv::rectangle(frame, cv::Point(0, im_height_ - 20), cv::Point(im_width_, im_height_), mBlack_, CV_FILLED);
@@ -742,10 +774,54 @@ void ArucoLocalizer::pdesInnerCallback(const aruco_localization::FloatList& msg)
     p_des_inner_3_.y = msg.data[7] + im_height_/2.0;
 }
 
-void ArucoLocalizer::ibvsStatusCallback(const std_msgs::String& msg)
+void ArucoLocalizer::statusCallback(const std_msgs::String& msg)
 {
-    ibvs_status_ = msg.data;
+    status_ = msg.data;
 }
+
+void ArucoLocalizer::currentTargetCallback(const std_msgs::String& msg)
+{
+    currentTarget_ = msg.data;
+}
+
+void ArucoLocalizer::roscopterVelCallback(const rosflight_msgs::Command& msg)
+{
+    if (status_ == "IBVS")
+    {
+        vx_ = msg.x;
+        vy_ = msg.y;
+        vz_ = msg.F;
+        wz_ = msg.z;
+    }
+    else
+    {
+        vx_ = 0.0;
+        vy_ = 0.0;
+        vz_ = 0.0;
+        wz_ = 0.0;
+    }
+}
+
+
+void ArucoLocalizer::mavrosVelCallback(const mavros_msgs::PositionTarget& msg)
+{
+    if (status_ == "IBVS")
+    {
+        // what comes in is in ENU but we want it in NED
+        vx_ = msg.velocity.y;
+        vy_ = msg.velocity.x;
+        vz_ = -msg.velocity.z;
+        wz_ = -msg.yaw_rate;
+    }
+    else
+    {
+        vx_ = 0.0;
+        vy_ = 0.0;
+        vz_ = 0.0;
+        wz_ = 0.0;
+    }
+}
+
 
 // ----------------------------------------------------------------------------
 Eigen::Matrix3f ArucoLocalizer::get_R_from_quat(const double& x, const double& y, const double& z, const double& w)

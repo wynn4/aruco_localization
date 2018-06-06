@@ -16,6 +16,9 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
+#include <rosflight_msgs/Command.h>
+#include <mavros_msgs/PositionTarget.h>
+
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Quaternion.h>
 #include <nav_msgs/Odometry.h>
@@ -48,8 +51,15 @@ namespace aruco_localizer {
         ros::Subscriber p_des_outer_sub_;
         ros::Subscriber p_des_inner_sub_;
 
-        // ibvs status subscriber
-        ros::Subscriber ibvs_status_sub_;
+        // state machine status subscriber
+        ros::Subscriber status_sub_;
+
+        // current target subscriber
+        ros::Subscriber current_target_sub_;
+
+        // IBVS velocity subscriber
+        ros::Subscriber ibvs_vel_sub_mavros_;
+        ros::Subscriber ibvs_vel_sub_roscopter_;
 
         // image transport pub/sub
         image_transport::ImageTransport it_;
@@ -173,6 +183,9 @@ namespace aruco_localizer {
         bool resize_;
         bool drawData_;
 
+        float vx_, vy_, vz_, wz_;
+        float vel_angle_;
+
         // Stuff for drawing
         cv::Point p_des_outer_0_;
         cv::Point p_des_outer_1_;
@@ -184,7 +197,8 @@ namespace aruco_localizer {
         cv::Point p_des_inner_2_;
         cv::Point p_des_inner_3_;
 
-        std::string ibvs_status_;
+        std::string status_;
+        std::string currentTarget_;
 
         // Colors
         cv::Scalar mRed_ = cv::Scalar(0, 0, 255);
@@ -193,6 +207,7 @@ namespace aruco_localizer {
         cv::Scalar mYellow_ = cv::Scalar(0,255,255);
         cv::Scalar mWhite_ = cv::Scalar(255,255,255);
         cv::Scalar mBlack_ = cv::Scalar(0,0,0);
+        cv::Scalar mCyan_ = cv::Scalar(255,255,0);
 
         //
         // Methods
@@ -208,8 +223,17 @@ namespace aruco_localizer {
         void pdesOuterCallback(const aruco_localization::FloatList& msg);
         void pdesInnerCallback(const aruco_localization::FloatList& msg);
 
-        // IBVS status callback
-        void ibvsStatusCallback(const std_msgs::String& msg);
+        // state machine status callback
+        void statusCallback(const std_msgs::String& msg);
+
+        // current target callback
+        void currentTargetCallback(const std_msgs::String& msg);
+
+        // ibvs velocity callback roscopter
+        void roscopterVelCallback(const rosflight_msgs::Command& msg);
+
+        // ibvs velocity callback mavros
+        void mavrosVelCallback(const mavros_msgs::PositionTarget& msg);
 
         // service handlers
         bool calibrateAttitude(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
