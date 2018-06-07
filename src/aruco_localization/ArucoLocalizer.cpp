@@ -98,7 +98,10 @@ ArucoLocalizer::ArucoLocalizer() :
     k_axis_(1,0) = 0.0;
     k_axis_(2,0) = -1.0;
 
-    k_angle_ = 9999.0;
+    k_angle_ = 99.0;
+
+    z_c_outer_ = 99.0;
+    z_c_inner_ = 99.0;
 
 
     // Initialize the attitude bias to zero
@@ -538,8 +541,17 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             cv::circle(frame, p_des_inner_3_, 10, mGreen_, 2);
         }
 
+        // Draw Semi-Transparent Rectangles
+        cv::Mat roi1 = frame(cv::Rect(0,0,370,40));
+        cv::Mat rect1(roi1.size(), CV_8UC3, mBlack_);
+        double alpha = 0.5;
+        cv::addWeighted(rect1, alpha, roi1, 1.0 - alpha, 0.0, roi1);
+
+        cv::Mat roi2 = frame(cv::Rect(0,40,125,95));
+        cv::Mat rect2(roi2.size(), CV_8UC3, mBlack_);
+        cv::addWeighted(rect2, alpha, roi2, 1.0 - alpha, 0.0, roi2);
+
         // Draw IBVS state machine status
-        cv::rectangle(frame, cv::Point(0,0), cv::Point(370,40), mBlack_, CV_FILLED);
         cv::putText(frame, "State Machine Status: " + status_, cv::Point(2, 15), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
 
         if (currentTarget_ == "aruco_outer")
@@ -553,7 +565,6 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         
 
         // Print Velocities
-        cv::rectangle(frame, cv::Point(0,40), cv::Point(125,132), mBlack_, CV_FILLED);
         cv::putText(frame, "vx: " + std::to_string(vx_), cv::Point(2, 55), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
         cv::putText(frame, "vy: " + std::to_string(vy_), cv::Point(2, 75), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
         cv::putText(frame, "vz: " + std::to_string(vz_), cv::Point(2, 95), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
