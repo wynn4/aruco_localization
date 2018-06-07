@@ -407,9 +407,9 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             corner_pix_outer_pub_.publish(cornersMsg);
 
             // publish distance data
-            float z_c = (markerSize_ * f_) / Ls;
+            z_c_outer_ = (markerSize_ * f_) / Ls;
             std_msgs::Float32 distanceMsg;
-            distanceMsg.data = z_c;
+            distanceMsg.data = z_c_outer_;
             distance_outer_pub_.publish(distanceMsg);
 
             // publish heading data
@@ -441,9 +441,9 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             corner_pix_inner_pub_.publish(cornersMsg);
 
             // publish distance data
-            float z_c = (markerSize_inner_ * f_) / Ls;
+            z_c_inner_ = (markerSize_inner_ * f_) / Ls;
             std_msgs::Float32 distanceMsg;
-            distanceMsg.data = z_c;
+            distanceMsg.data = z_c_inner_;
             distance_inner_pub_.publish(distanceMsg);
 
             // draw
@@ -531,11 +531,20 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             cv::circle(frame, p_des_inner_2_, 10, mGreen_, 2);
             cv::circle(frame, p_des_inner_3_, 10, mGreen_, 2);
         }
-        
+
         // Draw IBVS state machine status
         cv::rectangle(frame, cv::Point(0,0), cv::Point(370,40), mBlack_, CV_FILLED);
         cv::putText(frame, "State Machine Status: " + status_, cv::Point(2, 15), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
-        cv::putText(frame, "Current Target: " + currentTarget_, cv::Point(2, 35), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+
+        if (currentTarget_ == "aruco_outer")
+        {
+            cv::putText(frame, "Current Target: " + currentTarget_ + " d: " + std::to_string(z_c_outer_), cv::Point(2, 35), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+        }
+        else
+        {
+            cv::putText(frame, "Current Target: " + currentTarget_ + " d: " + std::to_string(z_c_inner_), cv::Point(2, 35), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+        }
+        
 
         // Print Velocities
         cv::rectangle(frame, cv::Point(0,40), cv::Point(125,100), mBlack_, CV_FILLED);

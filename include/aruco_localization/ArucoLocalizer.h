@@ -183,6 +183,9 @@ namespace aruco_localizer {
         bool resize_;
         bool drawData_;
 
+        float z_c_outer_;
+        float z_c_inner_;
+
         float vx_, vy_, vz_, wz_;
         float vel_angle_;
 
