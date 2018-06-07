@@ -94,6 +94,12 @@ ArucoLocalizer::ArucoLocalizer() :
     uvf_(3,2) = 1.0;
     uvf_(3,3) = 1.0;
 
+    k_axis_(0,0) = 0.0;
+    k_axis_(1,0) = 0.0;
+    k_axis_(2,0) = -1.0;
+
+    k_angle_ = 9999.0;
+
 
     // Initialize the attitude bias to zero
     quat_att_bias_.setRPY(0, 0, 0);
@@ -483,25 +489,25 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
                 // Publish.
                 orientation_inner_pub_.publish(quatMsg);
+
+                q_x_ = quatMsg.x;
+                q_y_ = quatMsg.y;
+                q_z_ = quatMsg.z;
+                q_w_ = quatMsg.w;
+
+                // Update our rotation from quat
+                get_R_from_quat();
+
+                // Displace the k-axis vector by the rotation
+                k_axis_disp_ = mQmatrix_ * k_axis_;
+
+                // Compute the angle between k-axis and displaced k-axis
+                k_angle_ = acos(k_axis_disp_.dot(k_axis_));
+
+                k_angle_ = 180.0 - k_angle_ * (180.0/3.14159);
+
+                // std::cout << k_angle_ << std::endl;
             }
-
-            // double x = quatMsg.x;
-            // double y = quatMsg.y;
-            // double z = quatMsg.z;
-            // double w = quatMsg.w;
-
-            // Eigen::Matrix3f R = get_R_from_quat(x, y, z, w);
-
-            // Eigen::Matrix<float, 3, 1> k_axis;
-            // k_axis(0,0) = 0.0;
-            // k_axis(1,0) = 0.0;
-            // k_axis(2,0) = 1.0;
-
-            // Eigen::Vector3f vec = R * k_axis;
-
-            // double angle = acos(vec.dot(k_axis));
-            // angle = 180.0 - angle * (180.0/3.14159);
-            // std::cout << angle << std::endl;
 
             corners.clear();
 
@@ -547,10 +553,22 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         
 
         // Print Velocities
-        cv::rectangle(frame, cv::Point(0,40), cv::Point(125,100), mBlack_, CV_FILLED);
+        cv::rectangle(frame, cv::Point(0,40), cv::Point(125,132), mBlack_, CV_FILLED);
         cv::putText(frame, "vx: " + std::to_string(vx_), cv::Point(2, 55), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
         cv::putText(frame, "vy: " + std::to_string(vy_), cv::Point(2, 75), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
         cv::putText(frame, "vz: " + std::to_string(vz_), cv::Point(2, 95), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+
+        // Print ArUco Angle
+        if (k_angle_ <= 15.0)
+        {
+            cv::putText(frame, "ArUco Angle:", cv::Point(2, 115), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+            cv::putText(frame, std::to_string(k_angle_), cv::Point(2, 130), CV_FONT_HERSHEY_PLAIN, 1.0, mGreen_);
+        }
+        else
+        {
+            cv::putText(frame, "ArUco Angle:", cv::Point(2, 115), CV_FONT_HERSHEY_PLAIN, 1.0, mWhite_);
+            cv::putText(frame, std::to_string(k_angle_), cv::Point(2, 130), CV_FONT_HERSHEY_PLAIN, 1.0, mRed_);
+        }
 
         // // Draw velocity line
         // vel_angle_ = atan2(vy_, vx_);
@@ -833,30 +851,33 @@ void ArucoLocalizer::mavrosVelCallback(const mavros_msgs::PositionTarget& msg)
 
 
 // ----------------------------------------------------------------------------
-Eigen::Matrix3f ArucoLocalizer::get_R_from_quat(const double& x, const double& y, const double& z, const double& w)
+void ArucoLocalizer::get_R_from_quat()
 {
-    double wx = w*x;
-    double wy = w*y;
-    double wz = w*z;
-    double xx = x*x;
-    double xy = x*y;
-    double xz = x*z;
-    double yy = y*y;
-    double yz = y*z;
-    double zz = z*z;
+    q_wx_ = q_w_*q_x_;
+    q_wy_ = q_w_*q_y_;
+    q_wz_ = q_w_*q_z_;
+    q_xx_ = q_x_*q_x_;
+    q_xy_ = q_x_*q_y_;
+    q_xz_ = q_x_*q_z_;
+    q_yy_ = q_y_*q_y_;
+    q_yz_ = q_y_*q_z_;
+    q_zz_ = q_z_*q_z_;
 
-    Eigen::Matrix3f mmatrix;
-    mmatrix(0,0) = 1.0 - 2.0*yy - 2.0*zz;
-    mmatrix(0,1) = 2.0*xy + 2.0*wz;
-    mmatrix(0,2) = 2.0*xz - 2.0*wy;
-    mmatrix(1,0) = 2.0*xy - 2.0*wz;
-    mmatrix(1,1) = 1.0 - 2.0*xx - 2.0*zz;
-    mmatrix(1,2) = 2.0*yz + 2.0*wx;
-    mmatrix(2,0) = 2.0*xz + 2.0*wy;
-    mmatrix(2,1) = 2.0*yz - 20.*wx;
-    mmatrix(2,2) = 1.0 - 2.0*xx - 2.0*yy;
+    mQmatrix_(0,0) = 1.0 - 2.0*q_yy_ - 2.0*q_zz_;
+    mQmatrix_(0,1) = 2.0*q_xy_ + 2.0*q_wz_;
+    mQmatrix_(0,2) = 2.0*q_xz_ - 2.0*q_wy_;
+    mQmatrix_(1,0) = 2.0*q_xy_ - 2.0*q_wz_;
+    mQmatrix_(1,1) = 1.0 - 2.0*q_xx_ - 2.0*q_zz_;
+    mQmatrix_(1,2) = 2.0*q_yz_ + 2.0*q_wx_;
+    mQmatrix_(2,0) = 2.0*q_xz_ + 2.0*q_wy_;
+    mQmatrix_(2,1) = 2.0*q_yz_ - 2.0*q_wx_;
+    mQmatrix_(2,2) = 1.0 - 2.0*q_xx_ - 2.0*q_yy_;
 
-    return mmatrix;
+    // return np.array([[1. - 2.*yy - 2.*zz, 2.*xy + 2.*wz, 2.*xz - 2.*wy],
+    //                      [2.*xy - 2.*wz, 1. - 2.*xx - 2.*zz, 2.*yz + 2.*wx],
+    //                      [2.*xz + 2.*wy, 2.*yz - 2.*wx, 1. - 2.*xx - 2.*yy]])
+
+    // return mQmatrix_;
 }
 
 // ----------------------------------------------------------------------------

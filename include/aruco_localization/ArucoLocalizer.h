@@ -189,6 +189,27 @@ namespace aruco_localizer {
         float vx_, vy_, vz_, wz_;
         float vel_angle_;
 
+        double q_wx_;
+        double q_wy_;
+        double q_wz_;
+        double q_xx_;
+        double q_xy_;
+        double q_xz_;
+        double q_yy_;
+        double q_yz_;
+        double q_zz_;
+
+        double q_x_;
+        double q_y_;
+        double q_z_;
+        double q_w_;
+
+        Eigen::Matrix3d mQmatrix_;
+        Eigen::Matrix<double, 3, 1> k_axis_;
+        Eigen::Matrix<double, 3, 1> k_axis_disp_;
+        double k_angle_;
+
+
         // Stuff for drawing
         cv::Point p_des_outer_0_;
         cv::Point p_des_outer_1_;
@@ -256,7 +277,7 @@ namespace aruco_localizer {
         void sendtf(const cv::Mat& rvec, const cv::Mat& tvec);
 
         // function to convert a quaternion to a rotation matrix
-        Eigen::Matrix3f get_R_from_quat(const double& x, const double& y, const double& z, const double& w);
+        void get_R_from_quat();
 
         // Save the current frame to file. Useful for debugging
         void saveInputFrame(const cv::Mat& frame);
