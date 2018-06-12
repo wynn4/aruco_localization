@@ -511,6 +511,12 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
                 // std::cout << k_angle_ << std::endl;
             }
+            else
+            {
+                // reinstantiate the pose tracker because it's not working
+                // std::cout << "Re-instantiated!!!" << std::endl;
+                mPoseTracker_ = aruco::MarkerPoseTracker();
+            }
 
             corners.clear();
 
