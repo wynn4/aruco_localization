@@ -483,7 +483,8 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
             // Calculate Rvec & Tvec with the pose tracker
             // innerMarkerLF.calculateExtrinsics(markerSize_inner_, camParams_, false);
-            if (mPoseTracker_.estimatePose(innerMarkerLF, camParams_, markerSize_inner_))
+            // if (mPoseTracker_.estimatePose(innerMarkerLF, camParams_, markerSize_inner_))
+            if (1)
             {
                 // Create the ROS message
                 geometry_msgs::Quaternion quatMsg;
