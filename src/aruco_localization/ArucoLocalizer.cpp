@@ -487,7 +487,8 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             {
                 // Create the ROS message
                 geometry_msgs::Quaternion quatMsg;
-                tf::Quaternion quat = rodriguesToTFQuat(mPoseTracker_.getRvec());
+                // tf::Quaternion quat = rodriguesToTFQuat(mPoseTracker_.getRvec());
+                tf::Quaternion quat = rodriguesToTFQuat(mmPoseTracker_.getRvec());
                 tf::quaternionTFToMsg(quat, quatMsg);
 
                 // Publish.
