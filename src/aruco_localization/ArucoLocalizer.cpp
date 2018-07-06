@@ -662,6 +662,14 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
             sendtf(mmPoseTracker_.getRvec(), mmPoseTracker_.getTvec());
         }
+        else
+        {
+            // If we detected markers but couldn't get the pose
+            if (detected_markers.size() > 0)
+            // reinstantiate the pose tracker because it's not working
+            std::cout << "Re-instantiated!!!" << std::endl;
+            mmPoseTracker_ = aruco::MarkerMapPoseTracker();
+        }
     }
 
 }
