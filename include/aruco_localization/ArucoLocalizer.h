@@ -134,8 +134,11 @@ namespace aruco_localizer {
         std::vector<cv::Point2f> cornersUndist_;
         std::vector<cv::Point2f> levelCorners_;
 
-        Eigen::Matrix<float, 4, 4> uvf_;
-        Eigen::Matrix<float, 4, 4> hom_;
+        Eigen::Matrix<float, 3, 1> p_tilde_;
+        Eigen::Matrix<float, 3, 1> zeta_;
+        Eigen::Matrix<float, 3, 1> P_c_;
+        Eigen::Matrix<float, 4, 4> P_array_c_;
+        Eigen::Matrix<float, 4, 4> P_array_cv_;
 
         Eigen::Matrix3f R_vlc_v1_;
         Eigen::Matrix3f R_v1_v2_;
@@ -183,6 +186,7 @@ namespace aruco_localizer {
         bool resize_;
         bool drawData_;
 
+        float z_c_;
         float z_c_outer_;
         float z_c_inner_;
 

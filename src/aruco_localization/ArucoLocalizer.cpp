@@ -80,19 +80,24 @@ ArucoLocalizer::ArucoLocalizer() :
     camera_offset_(1,0) = camera_offset_y;
     camera_offset_(2,0) = camera_offset_z;
 
+    p_tilde_.setZero();
+    zeta_.setZero();
+    P_c_.setZero();
+
     // Add in the camera offset to the T_b_m_ transformation
-    T_b_m_.block<3,1>(0,3) = camera_offset_;
+    T_b_m_.block<3,1>(0,3) = -camera_offset_;
 
     // Add in the rotations to the remaining transformations
     T_vlc_v1_.block<3,3>(0,0) = R_vlc_v1_;
     T_b_m_.block<3,3>(0,0) = R_b_m_;
     T_m_c_.block<3,3>(0,0) = R_m_c_;
 
-    // uvf_ is augmented with a row of ones
-    uvf_(3,0) = 1.0;
-    uvf_(3,1) = 1.0;
-    uvf_(3,2) = 1.0;
-    uvf_(3,3) = 1.0;
+    // P_array_c_ is augmented with a row of ones
+    P_array_cv_.setZero();
+    P_array_c_(3,0) = 1.0;
+    P_array_c_(3,1) = 1.0;
+    P_array_c_(3,2) = 1.0;
+    P_array_c_(3,3) = 1.0;
 
     k_axis_(0,0) = 0.0;
     k_axis_(1,0) = 0.0;
@@ -100,6 +105,7 @@ ArucoLocalizer::ArucoLocalizer() :
 
     k_angle_ = 99.0;
 
+    z_c_ = 99.0;
     z_c_outer_ = 99.0;
     z_c_inner_ = 99.0;
 
@@ -291,6 +297,15 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         // take the average
         float Ls = (Ls_1_2 + Ls_2_3 + Ls_3_4 + Ls_4_1) / 4.0;
 
+        if (detected_markers[idx].id == id_outer_)
+        {
+            z_c_ = (markerSize_ * f_) / Ls;
+        }
+        else if (detected_markers[idx].id == id_inner_)
+        {
+            z_c_ = (markerSize_inner_ * f_) / Ls;
+        }
+
         //
         // Get the marker's relative heading
         //
@@ -312,28 +327,28 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
         cv::undistortPoints(corners_, cornersUndist_, cameraMatrix_, distortionCoeff_);
         corners_.clear();
 
-        // De-normalize (multiply by focal length) but still keep corner locations wrt image center
+
+        // Localize the marker corners in the camera frame
         for (int i=0; i<4; i++)
         {
+            // De-normalize (multiply by focal length) but still keep corner locations wrt image center
             cornersUndist_[i].x = cornersUndist_[i].x * fx_;
             cornersUndist_[i].y = cornersUndist_[i].y * fy_;
+
+            // Create a vector pointing toward an image feature
+            p_tilde_(0,0) = cornersUndist_[i].x;
+            p_tilde_(1,0) = cornersUndist_[i].y * (fx_/fy_);
+            p_tilde_(2,0) = fx_;
+
+            // Normalize it
+            zeta_ = p_tilde_ / p_tilde_.norm();
+
+            // Multiply by the distance to get the feature P in the camera frame
+            P_c_= z_c_ * zeta_;
+
+            // Add the feature to our array
+            P_array_c_.block<3,1>(0,i) = P_c_;
         }
-
-        // Throw the undistorted corners and focal length into our Eigen uvf matrix (3x4) uvf_ = [x_pix; y_pix; f]
-        uvf_(0,0) = cornersUndist_[0].x;
-        uvf_(0,1) = cornersUndist_[1].x;
-        uvf_(0,2) = cornersUndist_[2].x;
-        uvf_(0,3) = cornersUndist_[3].x;
-
-        uvf_(1,0) = cornersUndist_[0].y;
-        uvf_(1,1) = cornersUndist_[1].y;
-        uvf_(1,2) = cornersUndist_[2].y;
-        uvf_(1,3) = cornersUndist_[3].y;
-
-        uvf_(2,0) = f_;
-        uvf_(2,1) = f_;
-        uvf_(2,2) = f_;
-        uvf_(2,3) = f_;
 
         // Setup rotations
         // pre-evaluate sines and cosines for rotation matrix
@@ -379,19 +394,21 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
 
         // Use the Homography to get the corner locations in the level frame
         // hom_ = R_c_vlc_ * uvf_;  // 3x4
-        hom_ = T_c_vlc_ * uvf_;  // 4x4
+        P_array_cv_ = T_c_vlc_ * P_array_c_;  // 4x4
 
-        level_corner0_.x = f_ * (hom_(0,0)/hom_(2,0));  // u1
-        level_corner0_.y = f_ * (hom_(1,0)/hom_(2,0));  // v1
+        // pix_per_meter_ * f_meters_
 
-        level_corner1_.x = f_ * (hom_(0,1)/hom_(2,1));  // u2
-        level_corner1_.y = f_ * (hom_(1,1)/hom_(2,1));  // v2
+        level_corner0_.x = f_ * (P_array_cv_(0,0)/P_array_cv_(2,0));  // u1
+        level_corner0_.y = f_ * (P_array_cv_(1,0)/P_array_cv_(2,0));  // v1
 
-        level_corner2_.x = f_ * (hom_(0,2)/hom_(2,2));  // u3
-        level_corner2_.y = f_ * (hom_(1,2)/hom_(2,2));  // v3
+        level_corner1_.x = f_ * (P_array_cv_(0,1)/P_array_cv_(2,1));  // u2
+        level_corner1_.y = f_ * (P_array_cv_(1,1)/P_array_cv_(2,1));  // v2
 
-        level_corner3_.x = f_ * (hom_(0,3)/hom_(2,3));  // u4
-        level_corner3_.y = f_ * (hom_(1,3)/hom_(2,3));  // v4
+        level_corner2_.x = f_ * (P_array_cv_(0,2)/P_array_cv_(2,2));  // u3
+        level_corner2_.y = f_ * (P_array_cv_(1,2)/P_array_cv_(2,2));  // v3
+
+        level_corner3_.x = f_ * (P_array_cv_(0,3)/P_array_cv_(2,3));  // u4
+        level_corner3_.y = f_ * (P_array_cv_(1,3)/P_array_cv_(2,3));  // v4
 
         // Fill out the corner pixels vector {original_corner_pix, level_corner_pix}
         std::vector<float> corner_pixels = {corner0_.x, corner0_.y, corner1_.x, corner1_.y, corner2_.x, corner2_.y, corner3_.x, corner3_.y
@@ -416,7 +433,7 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             corner_pix_outer_pub_.publish(cornersMsg);
 
             // publish distance data
-            z_c_outer_ = (markerSize_ * f_) / Ls;
+            z_c_outer_ = z_c_;
             std_msgs::Float32 distanceMsg;
             distanceMsg.data = z_c_outer_;
             distance_outer_pub_.publish(distanceMsg);
@@ -450,7 +467,7 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             corner_pix_inner_pub_.publish(cornersMsg);
 
             // publish distance data
-            z_c_inner_ = (markerSize_inner_ * f_) / Ls;
+            z_c_inner_ = z_c_;
             std_msgs::Float32 distanceMsg;
             distanceMsg.data = z_c_inner_;
             distance_inner_pub_.publish(distanceMsg);
