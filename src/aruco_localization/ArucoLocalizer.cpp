@@ -150,7 +150,8 @@ ArucoLocalizer::ArucoLocalizer() :
     center_pix_inner_pub_ = nh_private_.advertise<geometry_msgs::PointStamped>("marker_center_inner", 1);
     corner_pix_inner_pub_ = nh_private_.advertise<aruco_localization::FloatList>("marker_corners_inner", 1);
     distance_inner_pub_ = nh_private_.advertise<std_msgs::Float32>("distance_inner", 1);
-    orientation_inner_pub_ = nh_private_.advertise<geometry_msgs::Quaternion>("orientation_inner", 1);
+    // orientation_inner_pub_ = nh_private_.advertise<geometry_msgs::Quaternion>("orientation_inner", 1);
+    k_angle_pub_ = nh_private_.advertise<std_msgs::Float32>("k_angle", 1);
 
     // Create ROS services
     calib_attitude_ = nh_private_.advertiseService("calibrate_attitude", &ArucoLocalizer::calibrateAttitude, this);
@@ -510,7 +511,7 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
                 tf::quaternionTFToMsg(quat, quatMsg);
 
                 // Publish.
-                orientation_inner_pub_.publish(quatMsg);
+                // orientation_inner_pub_.publish(quatMsg);
 
                 q_x_ = quatMsg.x;
                 q_y_ = quatMsg.y;
@@ -527,6 +528,12 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
                 k_angle_ = acos(k_axis_disp_.dot(k_axis_));
 
                 k_angle_ = 180.0 - k_angle_ * (180.0/3.14159);
+
+                // Create the message
+                std_msgs::Float32 angleMsg;
+                angleMsg.data = k_angle_;
+
+                k_angle_pub_.publish(angleMsg);
 
                 // std::cout << k_angle_ << std::endl;
             }

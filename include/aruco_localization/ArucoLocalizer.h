@@ -87,7 +87,8 @@ namespace aruco_localizer {
         ros::Publisher center_pix_inner_pub_;
         ros::Publisher corner_pix_inner_pub_;
         ros::Publisher distance_inner_pub_;
-        ros::Publisher orientation_inner_pub_;
+        // ros::Publisher orientation_inner_pub_;
+        ros::Publisher k_angle_pub_;
 
         ros::ServiceServer calib_attitude_;
 
