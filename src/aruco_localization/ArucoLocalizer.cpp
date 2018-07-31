@@ -502,47 +502,46 @@ void ArucoLocalizer::processImage(cv::Mat& frame, bool drawDetections) {
             // Calculate Rvec & Tvec with the pose tracker
             // innerMarkerLF.calculateExtrinsics(markerSize_inner_, camParams_, false);
             // if (mPoseTracker_.estimatePose(innerMarkerLF, camParams_, markerSize_inner_))
-            if (1)
+            if (mmPoseTracker_.isValid())
             {
-                // Create the ROS message
-                geometry_msgs::Quaternion quatMsg;
-                // tf::Quaternion quat = rodriguesToTFQuat(mPoseTracker_.getRvec());
-                tf::Quaternion quat = rodriguesToTFQuat(mmPoseTracker_.getRvec());
-                tf::quaternionTFToMsg(quat, quatMsg);
+                if (mmPoseTracker_.estimatePose(detected_markers))
+                {
+                    // Create the ROS message
+                    geometry_msgs::Quaternion quatMsg;
+                    // tf::Quaternion quat = rodriguesToTFQuat(mPoseTracker_.getRvec());
+                    tf::Quaternion quat = rodriguesToTFQuat(mmPoseTracker_.getRvec());
+                    tf::quaternionTFToMsg(quat, quatMsg);
 
-                // Publish.
-                // orientation_inner_pub_.publish(quatMsg);
+                    // Publish.
+                    // orientation_inner_pub_.publish(quatMsg);
 
-                q_x_ = quatMsg.x;
-                q_y_ = quatMsg.y;
-                q_z_ = quatMsg.z;
-                q_w_ = quatMsg.w;
+                    q_x_ = quatMsg.x;
+                    q_y_ = quatMsg.y;
+                    q_z_ = quatMsg.z;
+                    q_w_ = quatMsg.w;
 
-                // Update our rotation from quat
-                get_R_from_quat();
+                    // Update our rotation from quat
+                    get_R_from_quat();
 
-                // Displace the k-axis vector by the rotation
-                k_axis_disp_ = mQmatrix_ * k_axis_;
+                    // Displace the k-axis vector by the rotation
+                    k_axis_disp_ = mQmatrix_ * k_axis_;
 
-                // Compute the angle between k-axis and displaced k-axis
-                k_angle_ = acos(k_axis_disp_.dot(k_axis_));
+                    // Compute the angle between k-axis and displaced k-axis
+                    k_angle_ = acos(k_axis_disp_.dot(k_axis_));
 
-                k_angle_ = 180.0 - k_angle_ * (180.0/3.14159);
+                    k_angle_ = 180.0 - k_angle_ * (180.0/3.14159);
 
-                // Create the message
-                std_msgs::Float32 angleMsg;
-                angleMsg.data = k_angle_;
+                    // Create the message
+                    std_msgs::Float32 angleMsg;
+                    angleMsg.data = k_angle_;
 
-                k_angle_pub_.publish(angleMsg);
+                    k_angle_pub_.publish(angleMsg);
 
-                // std::cout << k_angle_ << std::endl;
+                    // std::cout << k_angle_ << std::endl;
+
+                }
             }
-            else
-            {
-                // reinstantiate the pose tracker because it's not working
-                // std::cout << "Re-instantiated!!!" << std::endl;
-                mPoseTracker_ = aruco::MarkerPoseTracker();
-            }
+            
 
             corners.clear();
 
